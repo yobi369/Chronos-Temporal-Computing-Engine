@@ -93,7 +93,7 @@ def integrate_adaptive_rk4(rhs: Derivative, initial: Vector, start: float, stop:
     return IntegrationResult(tuple(times),tuple(states),accepted,rejected,max_error)
 
 def _crosses(a: float, b: float) -> bool:
-    return a == 0.0 or b == 0.0 or (a < 0 < b) or (b < 0 < a)
+    return (a < 0 < b) or (b < 0 < a) or (b == 0.0 and a != 0.0)
 
 def _locate_root(rhs: Derivative, root: RootFunction, t0: float, y0: Vector,
     t1: float, y1: Vector, *, tolerance: float, max_iterations: int) -> tuple[float,Vector,float,float]:

@@ -2,13 +2,14 @@
 from __future__ import annotations
 import asyncio
 from contextlib import contextmanager
+from collections.abc import Iterator
 import hashlib
 import hmac
 import json
 import sqlite3
 import time
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 from uuid import uuid4
 
 MAX_MESSAGE_BYTES=1024*1024
@@ -135,9 +136,19 @@ class WorkerServer:
             self.store.mark_processed(message["message_id"])
             processed+=1
         return processed
+    async def run_forever(self,stop_event: asyncio.Event,*,poll_interval: float=0.1) -> None:
+        """Continuously drain durable inbox work until the supplied stop event is set."""
+        if poll_interval<=0: raise ValueError("poll_interval must be positive")
+        while not stop_event.is_set():
+            processed=await asyncio.to_thread(self.process_pending)
+            if processed==0:
+                try: await asyncio.wait_for(stop_event.wait(),timeout=poll_interval)
+                except asyncio.TimeoutError: pass
     async def start(self,host: str="127.0.0.1",port: int=0) -> tuple[str,int]:
         self._server=await asyncio.start_server(self._handle,host,port,ssl=self.ssl_context,limit=MAX_MESSAGE_BYTES+1)
-        socket=self._server.sockets[0]
+        sockets=self._server.sockets
+        if not sockets: raise RuntimeError("worker server started without a listening socket")
+        socket=sockets[0]
         address=socket.getsockname()
         return str(address[0]),int(address[1])
     async def _handle(self,reader: asyncio.StreamReader,writer: asyncio.StreamWriter) -> None:

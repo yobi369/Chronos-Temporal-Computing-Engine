@@ -39,9 +39,9 @@ A completed software milestone is not evidence for a physical theory.
 ## Verification boundaries
 The RK4 implementation is explicit and testable, but not suitable for stiff systems and not independently certified. Adaptive step-doubling estimates local truncation error; it is not a rigorous global error bound. Hybrid coupling now stops at the next discrete boundary and localizes sign-changing roots by bisection; tangential root detection, dense output and certified solvers remain unimplemented.
 
-Interval ordering expresses only what is guaranteed by closed intervals. Overlap does not imply simultaneity, and enumerated orders are not probabilities. Bounded model checking has state, depth and path budgets; results apply only to the supplied transition relation and finite bounds.
+Interval ordering expresses only what is guaranteed by closed intervals. Overlap does not imply simultaneity. Enumerated linear extensions are not probabilities; the separate Monte Carlo estimator assumes independent uniform timing errors. Bounded model checking has state, depth and path budgets; results apply only to the supplied transition relation and finite bounds.
 
-CheckpointStore is a single-writer local-filesystem protocol. Unit corruption tests do not prove power-loss durability across filesystems. Distributed reconciliation is a batch merge protocol, not consensus, transport, exactly-once execution or a production cluster. Statistical bootstrap intervals do not eliminate systematic benchmark bias. Independent multi-machine reproduction remains a required research activity.
+CheckpointStore is a single-writer local-filesystem protocol. Unit corruption tests do not prove power-loss durability across filesystems. Distributed causal reconciliation and authenticated worker transport are implemented, but the system is not consensus, exactly-once side effects or a production fault-tolerant cluster. Statistical bootstrap intervals do not eliminate systematic benchmark bias. Independent multi-machine reproduction remains a required research activity.
 
 Relativistic time dilation, quantum temporal models, closed timelike curves and other speculative physical ideas are not implemented. Physical predictions require explicit equations, units, assumptions, provenance and comparison with established reference results.
 
