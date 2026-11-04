@@ -8,7 +8,7 @@ Chronos retains integer discrete logical ticks and adds an explicitly coupled re
 - the caller's requested stop coordinate; or
 - the next queued discrete event tick.
 
-A root event is a named scalar function of `(time, state)`. Sign-changing crossings are localized by bisection. The engine schedules the associated discrete handler at `ceil(root_time)` and includes the unrounded root time and root state in the payload. The caller should consume the root event, apply its discrete state transition, then resume integration from the event's discrete boundary using the root state as the initial continuous state. This is an explicit quantization boundary, not exact real-time interleaving.
+A root event is a named scalar function of `(time, state)`. Sign-changing crossings are localized by bisection. The engine schedules the associated discrete handler at `ceil(root_time)` and includes the unrounded root time and root state in the payload. The engine advances its integer logical clock to the ceiling of the reached continuous boundary. The caller should consume the root event, apply its discrete state transition, then resume integration from that integer boundary using the root state as the initial continuous state. Events already queued at the same rounded tick retain their earlier insertion sequence. This is an explicit quantization boundary, not exact real-time interleaving.
 
 ## Numerical assumptions and limitations
 

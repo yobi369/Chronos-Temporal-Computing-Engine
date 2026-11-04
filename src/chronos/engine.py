@@ -93,7 +93,10 @@ class SimulationEngine:
             event_tick=max(self.current_time,math.ceil(result.root_event.time))
             payload={**spec[2],"root_name":result.root_event.name,
                 "root_time":result.root_event.time,"root_state":list(result.root_event.state)}
+            self.current_time=max(self.current_time,event_tick)
             self.schedule(event_tick,spec[0],payload)
+        else:
+            self.current_time=max(self.current_time,math.ceil(result.reached_boundary))
         return result
 
     def schedule_uncertain(self, interval: TimeInterval, event_type: str,
