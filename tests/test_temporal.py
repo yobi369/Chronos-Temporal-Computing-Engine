@@ -26,7 +26,8 @@ def test_bounded_model_check_finds_counterexample():
     assert result.counterexample[-1]["n"] == 2
 
 def test_bounded_model_check_accepts_safe_graph_and_enforces_state_limit():
-    transitions = lambda state: [{"n": 0}] if state["n"] == 0 else []
+    def transitions(state):
+        return [{"n": 0}] if state["n"] == 0 else []
     result = bounded_model_check({"n": 0}, transitions,
         Always(Atom(lambda state: state["n"] == 0)), max_depth=3)
     assert result.holds
