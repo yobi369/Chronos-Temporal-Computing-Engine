@@ -1,5 +1,20 @@
-# Distributed event ingestion and causal reconciliation
+# Distributed worker protocol
 
-DistributedEvent carries an origin and Lamport timestamp around an existing immutable Event. reconcile_events deduplicates identical IDs, rejects conflicting duplicates and missing parents, then emits a deterministic topological ordering. Lamport/origin/time/sequence/ID provide a deterministic tie-break among currently causally ready events.
+Chronos includes a working asynchronous worker message path:
+- HMAC-SHA256 authenticated JSON envelopes;
+- authenticated acknowledgements tied to message IDs;
+- size-bounded newline framing;
+- durable SQLite WAL inbox and outbox tables with FULL synchronous mode;
+- persistent deduplication and conflicting-message-ID rejection;
+- exponential retry backoff after network failures;
+- handler registration and explicit inbox processing.
 
-This is a merge protocol for already-collected batches, not network execution, consensus, leader election, exactly-once delivery, global wall-clock ordering, or partition tolerance. A production distributed engine still needs authenticated identities, durable inbox/outbox, retry/idempotency policy, membership epochs, transport security, partition ownership and an explicit conflict policy for concurrent writes.
+## Delivery semantics
+
+The sender removes an outbox record only after receiving a valid authenticated acknowledgement. The receiver durably records an inbox message before acknowledging it. Duplicate delivery of the same ID and body is acknowledged without inserting a second inbox row. Reuse of an ID with different content is rejected.
+
+Inbox processing is at-least-once: a process may terminate after a handler performs its side effect but before the processed marker is committed. Handlers must therefore be idempotent or implement their own transactional outbox/inbox boundary. This protocol does not promise exactly-once side effects.
+
+## Security and fault model
+
+HMAC authenticates integrity and possession of a shared secret; it does not encrypt traffic. Configure TLS through the supplied SSL contexts on untrusted networks, provision secrets securely, and rotate them operationally. This first worker protocol does not implement consensus, membership epochs, leader election, state partitioning, quorum writes, automatic conflict resolution or Byzantine fault tolerance. A partition leaves messages in the durable outbox for retry when connectivity returns.

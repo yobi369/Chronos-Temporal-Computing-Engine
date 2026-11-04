@@ -27,9 +27,10 @@ class CheckpointStore:
             with os.fdopen(fd,"wb") as stream:
                 stream.write(data); stream.flush(); os.fsync(stream.fileno())
             os.replace(name,path)
-            dir_fd=os.open(self.directory,os.O_RDONLY)
-            try: os.fsync(dir_fd)
-            finally: os.close(dir_fd)
+            if os.name != "nt":
+                dir_fd=os.open(self.directory,os.O_RDONLY)
+                try: os.fsync(dir_fd)
+                finally: os.close(dir_fd)
         finally:
             if os.path.exists(name): os.unlink(name)
     def save(self,payload: dict[str,Any], *, generation: int) -> str:

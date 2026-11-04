@@ -1,5 +1,13 @@
-# Interval and uncertain-time semantics
+# Uncertain-time scheduling and probability propagation
 
-TimeInterval represents a closed finite interval [lower, upper]. A definitely precedes B only when A.upper < B.lower. Overlap means neither interval is definitely earlier; it does not imply simultaneity. Intersection and hull are set operations.
+`TimeInterval(lower, upper)` represents a closed finite interval. Strict definite precedence is `a.upper < b.lower`; overlap means the ordering is unresolved, not simultaneous.
 
-possible_orders enumerates linear extensions of the definite-precedence relation for at most eight intervals. It deliberately does not choose an arbitrary total order for overlapping timestamps. This is a finite combinatorial utility, not a probability distribution over event times. Probabilistic timestamps, interval-valued event queue integration and uncertainty propagation through continuous solvers remain future work.
+## Execution policy
+
+`SimulationEngine.schedule_uncertain(interval, ...)` currently supports only the explicit `upper_bound` policy. It schedules at `ceil(interval.upper)` and stores the original interval and policy in event payload metadata. This provides reproducible conservative dispatch at the latest bound. It does not preserve all possible orders as separate executions.
+
+## Probabilistic propagation
+
+`propagate_order_probabilities` draws one independent uniform sample from each interval per trial and records the resulting total order. The result includes sample count, seed, counts and estimated frequencies. These probabilities are conditional on the independent-uniform assumption; they are not objective probabilities inherent in the intervals.
+
+For correlated clocks, non-uniform distributions, common-mode timing errors or empirical calibration, supply an appropriate future distribution model rather than interpreting the current Monte Carlo estimates as universal.

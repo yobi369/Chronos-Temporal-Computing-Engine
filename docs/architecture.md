@@ -26,4 +26,4 @@ Version 1 event logs distinguish experiment-driver initial inputs from the compl
 
 ## Limitations
 
-Snapshots remain in-process Python objects without a migration policy. Event payloads are not deeply immutable. There is no distributed scheduler, durable multi-writer store, crash-consistent checkpoint protocol, formal temporal logic, or physical-time model.
+Snapshots remain in-process Python objects without a migration policy. Event payloads are not deeply immutable. Hybrid integration is caller-driven and quantizes localized roots upward to integer event ticks. Uncertain-time scheduling uses a latest-bound policy. The worker transport provides HMAC-authenticated, durable at-least-once messages but not consensus or exactly-once effects. Symbolic checking is bounded explicit-state predicate evaluation.

@@ -11,7 +11,12 @@ Chronos is an early-stage research software project for deterministic discrete-e
 - Canonical event-log JSON, bounded local persistence, deterministic replay and final-state digest comparison.
 - Hypothesis property tests and differential checks against a separate sorted-list reference scheduler.
 - Finite-trace temporal operators and bounded explicit-state model checking.
-- Reproducible experiment manifests and a paired scheduler microbenchmark harness.
+- Reproducible experiment manifests and paired benchmark harness with cross-platform runner artifacts.
+- Hybrid discrete/continuous RK4 integration with event-boundary stopping and bisection root localization.
+- Conservative interval-time scheduling and seeded Monte Carlo event-order propagation.
+- Symbolic state predicates and bounded invariant checking.
+- HMAC-authenticated distributed worker messaging with durable SQLite inbox/outbox, retries and deduplication.
+- Process-termination checkpoint recovery tests.
 
 ## Development
 
@@ -24,11 +29,11 @@ Run the benchmark:
 
     python benchmarks/run_benchmarks.py --events 10000 --warmups 2 --repeats 7
 
-See docs/architecture.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/benchmarking.md, docs/validation.md, docs/event-logs-and-replay.md and docs/research-roadmap.md.
+See docs/architecture.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md and docs/research-roadmap.md.
 
 ## Important limitations
 
-Replay requires deterministic handlers and explicitly recorded inputs. Handler rollback cannot undo external effects. Snapshots omit handlers. Digests are not signatures or tamper-proof audit evidence. Temporal evaluation uses finite-trace semantics; bounded model checking is limited by the supplied transition relation, depth and state limit. The reference scheduler and benchmark are software baselines, not universal performance claims.
+Replay requires deterministic handlers and explicitly recorded inputs. Handler rollback cannot undo external effects. Snapshots omit handlers. Digests are not signatures or tamper-proof audit evidence. Temporal evaluation uses finite-trace semantics; symbolic checking is explicit-state and bounded. Hybrid root localization detects sign changes only and rounds roots up to integer event ticks. Interval probability estimates assume independent uniform timing errors. Worker handlers are at-least-once and must be idempotent; HMAC does not encrypt traffic, so configure TLS for untrusted networks. The reference scheduler and benchmark are software baselines, not universal performance claims.
 
 Chronos does not implement physical time travel, relativistic time manipulation, quantum temporal effects, or closed timelike curves. Such claims require precise mathematical models and independent validation.
 
