@@ -91,13 +91,28 @@ class SimulationEngine:
     def step(self) -> Event | None:
         if not self._queue:
             return None
+
+        # Take the rollback snapshot before removing the event. If copying state
+        # fails, the queue remains untouched and the handler is never invoked.
+        state_before = copy.deepcopy(self.state)
+        queue_before = copy.deepcopy(self._queue)
+        next_sequence_before = self._next_sequence
+        clock_before = self._clock.value
+        time_before = self.current_time
+
         _, _, event = heapq.heappop(self._queue)
         self.current_time = event.time
         self._current_event = event
         try:
             self._handlers[event.event_type](event, self)
         except Exception:
-            heapq.heappush(self._queue, (event.time, event.sequence, event))
+            # Roll back engine-managed state and scheduler mutations. External
+            # side effects performed by handler code cannot be undone here.
+            self.state = state_before
+            self._queue = queue_before
+            self._next_sequence = next_sequence_before
+            self._clock.value = clock_before
+            self.current_time = time_before
             raise
         finally:
             self._current_event = None
