@@ -1,51 +1,31 @@
-# Chronos — Temporal Computing Engine
+# Chronos Temporal Computing Engine
 
-Chronos is an experimental, deterministic temporal-computing laboratory for event-driven systems, causal ordering, branching histories, counterfactual simulation, and reproducible experiments.
+Chronos is an early-stage research software project for deterministic discrete-event simulation, causal event provenance, and branching logical timelines.
 
-The project treats speculative temporal ideas as computational models, not claims that physical time can be manipulated.
+## Implemented capabilities
 
-## Current status
-
-Early research prototype. The initial implementation provides:
-
-- A deterministic discrete-event scheduler with stable tie-breaking.
+- Deterministic discrete-event scheduling with stable time/sequence ordering.
 - Explicit event identity, logical time, and declared causal-parent references.
-- Lamport and vector clocks for logical ordering and distributed happens-before analysis.
-- A causal provenance graph with ancestor and descendant queries.
-- In-process timeline snapshots and isolated forks.
+- Lamport and vector clocks for logical ordering and happens-before analysis.
+- Causal provenance graph with ancestor and descendant queries.
+- In-process snapshots and isolated timeline forks.
 - Event-log consistency validation.
-- Tests for ordering, causal provenance, bounded execution, and branch isolation.
+- Canonical versioned event-log JSON, bounded local persistence, deterministic replay from explicit initial inputs, and final-state digest comparison.
 
-Not implemented: persistent replay, relativistic spacetime simulation, quantum time models, physical time travel, distributed consensus, or production persistence. These require separate mathematical specifications and validation.
+## Development
 
-## Quick start
+    python -m pip install -e '.[dev]'
+    ruff check .
+    mypy src
+    pytest --cov=chronos --cov-report=term-missing
 
-Requires Python 3.11+.
+See the [architecture](docs/architecture.md), [temporal model](docs/temporal-model.md), [validation strategy](docs/validation.md), [event logs and replay](docs/event-logs-and-replay.md), and [research roadmap](docs/research-roadmap.md).
 
-    python -m pip install -e ".[dev]"
-    pytest
+## Important limitations
 
-Run the example:
+Replay requires deterministic handlers and explicitly recorded initial inputs. It does not sandbox imported code, capture arbitrary external dependencies, provide a distributed database, or guarantee crash-consistent checkpoints. Event-log state digests are reproducibility checksums, not signatures or tamper-proof audit evidence.
 
-    python examples/branching_timeline.py
-
-## Design principles
-
-1. Determinism: identical inputs and initial state produce identical event traces.
-2. Explicit causality: causal links are declared and validated, not inferred from wall-clock timestamps.
-3. Branch isolation: a fork explores an alternative future without mutating its parent.
-4. Reproducibility: experiments expose their inputs, event traces, and configuration.
-5. Scientific honesty: model assumptions and limits are documented; simulation output is not evidence of a physical phenomenon.
-
-## Architecture
-
-- `chronos.clock`: logical clock primitives.
-- `chronos.events`: immutable event records.
-- `chronos.engine`: deterministic discrete-event execution.
-- `chronos.timeline`: forkable in-process snapshots.
-- `chronos.validation`: event-log consistency checks.
-
-See [docs/architecture.md](docs/architecture.md), [docs/temporal-model.md](docs/temporal-model.md), and [docs/validation.md](docs/validation.md).
+Chronos does not implement physical time travel, relativistic time manipulation, quantum temporal effects, or closed timelike curves. These remain speculative research directions unless and until precise mathematical models and independent validation are supplied.
 
 ## License
 

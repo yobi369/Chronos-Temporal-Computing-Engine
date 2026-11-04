@@ -14,8 +14,10 @@ This roadmap separates implementable software capabilities from speculative phys
 
 ## Milestone 2 — reproducibility and formal semantics
 
-- [ ] Canonical, versioned event serialization with strict payload schemas.
-- [ ] Deterministic replay from a recorded input log, including state-digest comparison.
+- [x] Canonical, versioned event-log serialization with strict structural validation.
+- [x] Local atomic event-log persistence with a bounded reader.
+- [x] Deterministic replay from explicit initial inputs and recorded handler-generated events.
+- [x] Final-state SHA-256 digest comparison during replay.
 - [ ] Snapshot compatibility and migration policy.
 - [ ] Property-based testing and differential testing against an independent scheduler.
 - [ ] Temporal logic operators and bounded model-checking examples.
