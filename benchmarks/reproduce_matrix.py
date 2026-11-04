@@ -11,8 +11,8 @@ from pathlib import Path
 def main() -> None:
     output=Path(os.environ.get("CHRONOS_BENCHMARK_OUTPUT","benchmark-results"))
     output.mkdir(parents=True,exist_ok=True)
-    result=subprocess.run([sys.executable,"benchmarks/run_benchmarks.py","--events","2000",
-        "--warmups","1","--repeats","9","--output",str(output/"paired.json")],
+    result=subprocess.run([sys.executable,"benchmarks/run_benchmarks.py","--events","500",
+        "--warmups","1","--repeats","7","--output",str(output/"paired.json")],
         check=True,capture_output=True,text=True)
     record={"machine_label":os.environ.get("RUNNER_NAME",platform.node()),
         "os":platform.platform(),"python":platform.python_version(),
