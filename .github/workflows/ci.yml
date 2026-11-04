@@ -27,4 +27,4 @@ jobs:
       - name: Test
         run: pytest --cov=chronos --cov-report=term-missing --cov-fail-under=70
       - name: Benchmark smoke test
-        run: python benchmarks/run_benchmarks.py --events 100 --warmups 0 --repeats 1 --output /tmp/chronos-benchmark.json
+        run: python benchmarks/run_benchmarks.py --events 100 --warmups 0 --repeats 3 --output /tmp/chronos-benchmark.json
