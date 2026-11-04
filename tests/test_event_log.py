@@ -83,6 +83,11 @@ def test_unsupported_version_and_unknown_fields_are_rejected():
         event_log_from_json(json.dumps(document))
 
 
+def test_duplicate_json_object_keys_are_rejected():
+    with pytest.raises(EventLogError, match="duplicate JSON object key"):
+        event_log_from_json('{"schema_version":1,"schema_version":1}')
+
+
 def test_non_json_state_and_nan_payload_are_rejected():
     with pytest.raises(EventLogError, match="canonical JSON"):
         state_digest({"not_json": object()})
