@@ -74,10 +74,12 @@ def test_replay_detects_state_tampering():
 
 
 def test_unsupported_version_and_unknown_fields_are_rejected():
-    with pytest.raises(EventLogError, match="unsupported"):
-        event_log_from_json('{"schema_version":2}')
     engine, inputs = build_run()
     document = json.loads(event_log_to_json(EventLog.capture(engine, inputs)))
+    document["schema_version"] = 2
+    with pytest.raises(EventLogError, match="unsupported"):
+        event_log_from_json(json.dumps(document))
+    document["schema_version"] = 1
     document["unexpected"] = True
     with pytest.raises(EventLogError, match="exactly"):
         event_log_from_json(json.dumps(document))
