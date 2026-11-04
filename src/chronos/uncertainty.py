@@ -11,16 +11,16 @@ class TimeInterval:
     def __post_init__(self) -> None:
         if not (math.isfinite(self.lower) and math.isfinite(self.upper)) or self.lower>self.upper:
             raise ValueError("time interval must be finite and lower <= upper")
-    def definitely_before(self, other: "TimeInterval") -> bool:
+    def definitely_before(self, other: TimeInterval) -> bool:
         return self.upper < other.lower
-    def possibly_before(self, other: "TimeInterval") -> bool:
+    def possibly_before(self, other: TimeInterval) -> bool:
         return self.lower < other.upper
-    def overlaps(self, other: "TimeInterval") -> bool:
+    def overlaps(self, other: TimeInterval) -> bool:
         return not (self.definitely_before(other) or other.definitely_before(self))
-    def intersection(self, other: "TimeInterval") -> "TimeInterval|None":
+    def intersection(self, other: TimeInterval) -> "TimeInterval|None":
         lo=max(self.lower,other.lower); hi=min(self.upper,other.upper)
         return TimeInterval(lo,hi) if lo<=hi else None
-    def hull(self, other: "TimeInterval") -> "TimeInterval":
+    def hull(self, other: TimeInterval) -> TimeInterval:
         return TimeInterval(min(self.lower,other.lower),max(self.upper,other.upper))
 
 def must_precede(a: TimeInterval, b: TimeInterval) -> bool:
