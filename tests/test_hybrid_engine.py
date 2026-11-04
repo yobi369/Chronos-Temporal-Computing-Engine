@@ -29,7 +29,8 @@ def test_hybrid_integration_stops_at_next_discrete_event_boundary():
 
 def test_rk4_fourth_order_convergence_on_exponential():
     from chronos.hybrid import integrate_rk4
-    rhs=lambda t,y:(y[0],)
+    def rhs(t, y):
+        return (y[0],)
     coarse=integrate_rk4(rhs,(1.0,),0.0,1.0,0.2).states[-1][0]
     fine=integrate_rk4(rhs,(1.0,),0.0,1.0,0.1).states[-1][0]
     exact=2.718281828459045
