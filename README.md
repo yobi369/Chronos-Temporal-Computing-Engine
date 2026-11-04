@@ -10,7 +10,8 @@ Early research prototype. The initial implementation provides:
 
 - A deterministic discrete-event scheduler with stable tie-breaking.
 - Explicit event identity, logical time, and declared causal-parent references.
-- A Lamport-style logical clock utility.
+- Lamport and vector clocks for logical ordering and distributed happens-before analysis.
+- A causal provenance graph with ancestor and descendant queries.
 - In-process timeline snapshots and isolated forks.
 - Event-log consistency validation.
 - Tests for ordering, causal provenance, bounded execution, and branch isolation.
