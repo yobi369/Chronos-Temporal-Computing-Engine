@@ -1,9 +1,11 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+
 @dataclass(frozen=True, slots=True)
 class Event:
     """Event on an experiment-defined discrete logical-time axis."""
+
     event_id: str
     time: int
     sequence: int

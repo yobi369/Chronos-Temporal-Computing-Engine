@@ -1,13 +1,16 @@
 from __future__ import annotations
+
 import copy
 import heapq
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+
 from chronos.clock import LogicalClock
 from chronos.events import Event
 
-EventHandler = Callable[[Event, 'SimulationEngine'], None]
+EventHandler = Callable[[Event, 'SimulationEngine'], None]  # noqa: UP037
+
 
 @dataclass(frozen=True, slots=True)
 class EngineSnapshot:
@@ -19,8 +22,10 @@ class EngineSnapshot:
     state: dict[str, Any]
     logical_clock_value: int
 
+
 class SimulationEngine:
     """Single-process deterministic event scheduler ordered by (time, sequence)."""
+
     def __init__(self, timeline_id: str = 'root') -> None:
         self.timeline_id = timeline_id
         self.current_time = 0
@@ -45,18 +50,40 @@ class SimulationEngine:
             raise ValueError('event type must be non-empty and registered only once')
         self._handlers[event_type] = handler
 
-    def schedule(self, time: int, event_type: str, payload: dict[str, Any] | None = None, *, parent_event_id: str | None = None) -> Event:
+    def schedule(
+        self,
+        time: int,
+        event_type: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        parent_event_id: str | None = None,
+    ) -> Event:
         if time < self.current_time:
             raise ValueError('cannot schedule an event in the past')
         if event_type not in self._handlers:
             raise ValueError(f'no handler registered for {event_type!r}')
-        parent = parent_event_id or (self._current_event.event_id if self._current_event else None)
-        known = {e.event_id for e in self._history} | {item[2].event_id for item in self._queue}
-        if parent is not None and parent not in known and (self._current_event is None or parent != self._current_event.event_id):
+        parent = parent_event_id or (
+            self._current_event.event_id if self._current_event else None
+        )
+        known = {event.event_id for event in self._history} | {
+            item[2].event_id for item in self._queue
+        }
+        if (
+            parent is not None
+            and parent not in known
+            and (self._current_event is None or parent != self._current_event.event_id)
+        ):
             raise ValueError(f'unknown causal parent event: {parent}')
         sequence = self._next_sequence
         self._next_sequence += 1
-        event = Event(f'{self.timeline_id}:{sequence}', time, sequence, event_type, copy.deepcopy(payload or {}), parent)
+        event = Event(
+            f'{self.timeline_id}:{sequence}',
+            time,
+            sequence,
+            event_type,
+            copy.deepcopy(payload or {}),
+            parent,
+        )
         heapq.heappush(self._queue, (time, sequence, event))
         self._clock.tick()
         return event
@@ -78,7 +105,12 @@ class SimulationEngine:
         self._clock.tick()
         return event
 
-    def run(self, *, until: int | None = None, max_events: int | None = None) -> tuple[Event, ...]:
+    def run(
+        self,
+        *,
+        until: int | None = None,
+        max_events: int | None = None,
+    ) -> tuple[Event, ...]:
         if until is not None and until < self.current_time:
             raise ValueError('until cannot precede current time')
         if max_events is not None and max_events < 0:
@@ -97,10 +129,22 @@ class SimulationEngine:
         return tuple(result)
 
     def snapshot(self) -> EngineSnapshot:
-        return EngineSnapshot(self.timeline_id, self.current_time, self._next_sequence, copy.deepcopy(self.pending_events), copy.deepcopy(self._history), copy.deepcopy(self.state), self._clock.value)
+        return EngineSnapshot(
+            self.timeline_id,
+            self.current_time,
+            self._next_sequence,
+            copy.deepcopy(self.pending_events),
+            copy.deepcopy(self._history),
+            copy.deepcopy(self.state),
+            self._clock.value,
+        )
 
     @classmethod
-    def from_snapshot(cls, snapshot: EngineSnapshot, handlers: dict[str, EventHandler] | None = None) -> 'SimulationEngine':
+    def from_snapshot(
+        cls,
+        snapshot: EngineSnapshot,
+        handlers: dict[str, EventHandler] | None = None,
+    ) -> SimulationEngine:
         engine = cls(snapshot.timeline_id)
         engine.current_time = snapshot.current_time
         engine._next_sequence = snapshot.next_sequence

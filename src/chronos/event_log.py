@@ -12,6 +12,7 @@ from typing import Any
 
 from chronos.engine import SimulationEngine
 from chronos.events import Event
+from chronos.validation import validate_event_log
 
 SCHEMA_VERSION = 1
 DEFAULT_MAX_LOG_BYTES = 16 * 1024 * 1024
@@ -37,8 +38,10 @@ class EventInput:
     def __post_init__(self) -> None:
         if isinstance(self.time, bool) or not isinstance(self.time, int) or self.time < 0:
             raise ValueError("input event time must be a non-negative integer")
-        if not self.event_type:
+        if not isinstance(self.event_type, str) or not self.event_type:
             raise ValueError("input event type must not be empty")
+        if not isinstance(self.payload, dict):
+            raise ValueError("input event payload must be an object")
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +110,8 @@ def event_log_to_json(log: EventLog) -> str:
     """Serialize an event log using stable key ordering and compact JSON."""
     if log.schema_version != SCHEMA_VERSION:
         raise EventLogError(f"unsupported event-log schema version: {log.schema_version}")
+    if validate_event_log(log.events):
+        raise EventLogError("event log contains inconsistent execution history")
     document = {
         "schema_version": log.schema_version,
         "timeline_id": log.timeline_id,
@@ -115,6 +120,15 @@ def event_log_to_json(log: EventLog) -> str:
         "final_state_digest": log.final_state_digest,
     }
     return _canonical_json(document)
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise EventLogError(f"duplicate JSON object key: {key}")
+        result[key] = value
+    return result
 
 
 def _require_object(value: Any, expected_keys: set[str], label: str) -> dict[str, Any]:
@@ -139,7 +153,7 @@ def _require_payload(value: Any, label: str) -> dict[str, Any]:
 def event_log_from_json(source: str) -> EventLog:
     """Parse and strictly validate a version-1 event log."""
     try:
-        document = json.loads(source)
+        document = json.loads(source, object_pairs_hook=_reject_duplicate_keys)
     except json.JSONDecodeError as exc:
         raise EventLogError(f"invalid event-log JSON: {exc}") from exc
     document = _require_object(
@@ -169,7 +183,8 @@ def event_log_from_json(source: str) -> EventLog:
     inputs: list[EventInput] = []
     for index, raw in enumerate(raw_inputs):
         item = _require_object(
-            raw, {"time", "event_type", "payload", "parent_event_id"},
+            raw,
+            {"time", "event_type", "payload", "parent_event_id"},
             f"initial_events[{index}]",
         )
         time = _require_int(item["time"], f"initial_events[{index}].time")
@@ -178,9 +193,18 @@ def event_log_from_json(source: str) -> EventLog:
         if not isinstance(event_type, str) or not event_type:
             raise EventLogError(f"initial_events[{index}].event_type must be non-empty")
         if parent is not None and not isinstance(parent, str):
-            raise EventLogError(f"initial_events[{index}].parent_event_id must be a string or null")
+            raise EventLogError(
+                f"initial_events[{index}].parent_event_id must be a string or null"
+            )
         try:
-            inputs.append(EventInput(time, event_type, _require_payload(item["payload"], "payload"), parent))
+            inputs.append(
+                EventInput(
+                    time,
+                    event_type,
+                    _require_payload(item["payload"], "payload"),
+                    parent,
+                )
+            )
         except ValueError as exc:
             raise EventLogError(str(exc)) from exc
 
@@ -214,6 +238,8 @@ def event_log_from_json(source: str) -> EventLog:
         except ValueError as exc:
             raise EventLogError(str(exc)) from exc
 
+    if validate_event_log(events):
+        raise EventLogError("event log contains inconsistent execution history")
     return EventLog(timeline_id, tuple(inputs), tuple(events), digest, version)
 
 
