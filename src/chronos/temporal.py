@@ -1,3 +1,4 @@
+# ruff: noqa: E701, E702, E501
 """Finite-trace temporal logic and bounded explicit-state model checking."""
 from __future__ import annotations
 from collections import deque

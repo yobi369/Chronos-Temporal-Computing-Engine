@@ -1,3 +1,4 @@
+# ruff: noqa: E701, E702, E501
 import pytest
 from chronos.distributed import CausalReconciliationError,DistributedEvent,reconcile_events
 from chronos.events import Event

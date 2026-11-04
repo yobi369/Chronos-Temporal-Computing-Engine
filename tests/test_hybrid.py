@@ -1,3 +1,4 @@
+# ruff: noqa: E701, E702, E501
 import math
 import pytest
 from chronos.hybrid import integrate_adaptive_rk4, integrate_rk4, rk4_step

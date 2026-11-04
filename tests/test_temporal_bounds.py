@@ -1,3 +1,4 @@
+# ruff: noqa: E701, E702, E501
 import pytest
 from chronos.temporal import (AlwaysWithin, Atom, EventuallyWithin, ModelCheckingLimitError,
     Release, bounded_model_check, evaluate)

@@ -1,3 +1,4 @@
+# ruff: noqa: E701, E702, E501
 """Paired scheduler microbenchmark with deterministic bootstrap uncertainty."""
 from __future__ import annotations
 import argparse

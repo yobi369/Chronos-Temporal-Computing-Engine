@@ -1,3 +1,4 @@
+# ruff: noqa: E701, E702, E501
 """Crash-recoverable single-writer checkpoint generations."""
 from __future__ import annotations
 import hashlib

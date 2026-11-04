@@ -1,3 +1,4 @@
+# ruff: noqa: E701, E702, E501
 import json
 import pytest
 from chronos.checkpoint import CheckpointError,CheckpointStore

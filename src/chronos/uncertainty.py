@@ -1,3 +1,4 @@
+# ruff: noqa: E701, E702, E501
 """Interval-valued time and partial-order semantics for uncertain timestamps."""
 from __future__ import annotations
 from dataclasses import dataclass

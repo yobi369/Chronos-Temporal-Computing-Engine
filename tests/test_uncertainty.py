@@ -1,3 +1,4 @@
+# ruff: noqa: E701, E702, E501
 import pytest
 from chronos.uncertainty import TimeInterval, possible_orders
 

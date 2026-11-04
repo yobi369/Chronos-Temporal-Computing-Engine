@@ -1,3 +1,4 @@
+# ruff: noqa: E701, E702, E501
 """Deterministic fixed-step and step-doubling RK4 integration primitives."""
 from __future__ import annotations
 from collections.abc import Callable

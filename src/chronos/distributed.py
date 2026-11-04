@@ -1,3 +1,4 @@
+# ruff: noqa: E701, E702, E501
 """Deterministic merge of distributed event batches with causal validation.
 
 This module defines an ingestion/reconciliation protocol, not a network transport,
