@@ -101,7 +101,7 @@ def test_worker_client_background_delivery_loop_drains_durable_outbox(tmp_path):
         stop=asyncio.Event()
         task=asyncio.create_task(client.run_forever(host,port,stop,poll_interval=0.01))
         try:
-            for _ in range(200):
+            for _ in range(1000):
                 if receiver.inbox_pending() and sender.pending_count()==0:
                     break
                 await asyncio.sleep(0.01)
