@@ -207,10 +207,11 @@ class WorkerClient:
             message=document["message"]; message_id=message["message_id"]
             writer: asyncio.StreamWriter|None=None
             try:
-                reader,writer=await asyncio.wait_for(
+                reader,connected_writer=await asyncio.wait_for(
                     asyncio.open_connection(host,port,ssl=self.ssl_context),timeout)
-                writer.write(_canonical(document)+b"\n")
-                await writer.drain()
+                writer=connected_writer
+                connected_writer.write(_canonical(document)+b"\n")
+                await connected_writer.drain()
                 response=await asyncio.wait_for(reader.readline(),timeout)
                 if len(response)>1024 or not verify_ack(json.loads(response),message_id,self.secret):
                     raise WorkerProtocolError("remote worker rejected message or returned an invalid acknowledgement")
