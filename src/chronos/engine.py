@@ -135,7 +135,7 @@ class SimulationEngine:
     def run(self, *, until: int | None=None, max_events: int | None=None) -> tuple[Event,...]:
         if until is not None and until<self.current_time: raise ValueError('until cannot precede current time')
         if max_events is not None and max_events<0: raise ValueError('max_events must be non-negative')
-        result=[]
+        result: list[Event] = []
         while self._queue:
             if until is not None and self._queue[0][0]>until: break
             if max_events is not None and len(result)>=max_events: break

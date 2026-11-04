@@ -66,7 +66,8 @@ def symbolic_bounded_check(initial: dict[str,Any],
     """Check a symbolic state predicate over all reachable states up to max_depth."""
     if max_depth<0 or max_states<1 or max_paths<1: raise ValueError("invalid symbolic exploration bounds")
     state_digest(initial)
-    queue=deque([(initial,(initial,),0)]); seen={state_digest(initial)}; generated=1
+    queue: deque[tuple[dict[str,Any],tuple[dict[str,Any],...],int]] = deque([(initial,(initial,),0)])
+    seen={state_digest(initial)}; generated=1
     while queue:
         state,trace,depth=queue.popleft()
         if not bool(invariant.evaluate(state)):
