@@ -3,7 +3,8 @@
 from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
+from typing import Any
 from chronos.event_log import state_digest
 
 State = Mapping[str,Any]
