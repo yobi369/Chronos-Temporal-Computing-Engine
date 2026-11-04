@@ -23,3 +23,7 @@ A branch is a counterfactual computational continuation from a captured state. D
 ## Research extensions
 
 Potential work includes vector clocks, temporal logic, persistent event sourcing, deterministic replay, interval time, hybrid continuous/discrete simulation, and model checking. Each extension needs explicit semantics and tests before being claimed as supported.
+
+## Vector clocks and causal graph
+
+Vector clocks represent distributed happens-before ordering without assuming a globally synchronized physical clock. If neither vector is strictly ordered before the other, the observations are concurrent under the vector-clock model. Chronos also builds a directed provenance graph from declared event-parent links and supports ancestor and descendant queries. These relations describe the supplied model and event provenance; they do not independently establish physical causation.
