@@ -96,7 +96,9 @@ def bounded_model_check(initial: dict[str, Any],
     if max_depth < 0 or max_states < 1:
         raise ValueError("max_depth must be non-negative and max_states must be positive")
     state_digest(initial)
-    queue = deque([(initial, (initial,))])
+    queue: deque[tuple[dict[str, Any], tuple[dict[str, Any], ...]]] = deque(
+        [(initial, (initial,))]
+    )
     seen = {state_digest(initial)}
     completed = 0
     while queue:
