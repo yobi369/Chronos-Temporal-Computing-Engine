@@ -98,13 +98,18 @@ def test_worker_client_background_delivery_loop_drains_durable_outbox(tmp_path):
         host,port=await server.start()
         client=WorkerClient("source",SECRET,sender)
         client.publish("target","task",{"n":7},message_id="background-loop")
+        delivered_event=asyncio.Event()
+        original_deliver=client.deliver_pending
+        async def observed_deliver(host,port,*,now=None,limit=100,timeout=3.0):
+            result=await original_deliver(host,port,now=now,limit=limit,timeout=timeout)
+            if result[0]:
+                delivered_event.set()
+            return result
+        client.deliver_pending=observed_deliver
         stop=asyncio.Event()
         task=asyncio.create_task(client.run_forever(host,port,stop,poll_interval=0.01))
         try:
-            for _ in range(1000):
-                if receiver.inbox_pending() and sender.pending_count()==0:
-                    break
-                await asyncio.sleep(0.01)
+            await asyncio.wait_for(delivered_event.wait(),timeout=10)
             assert receiver.inbox_pending()
             assert sender.pending_count()==0
         finally:
