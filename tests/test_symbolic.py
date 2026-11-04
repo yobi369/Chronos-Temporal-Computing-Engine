@@ -13,7 +13,8 @@ def test_symbolic_state_limit_and_partial_order_canonicalization():
     with pytest.raises(SymbolicLimitError):
         symbolic_bounded_check({"n":0},lambda s:[{"n":s["n"]+1}],Compare("ge",Field("n"),Literal(0)),
             max_depth=5,max_states=2)
-    independent=lambda a,b: {a,b}=={"read-a","read-b"}
+    def independent(a, b):
+        return {a,b}=={"read-a","read-b"}
     assert canonical_independent_trace(("read-b","read-a","write"),independent)==("read-a","read-b","write")
 
 

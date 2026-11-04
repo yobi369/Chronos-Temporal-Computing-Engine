@@ -1,3 +1,4 @@
+# ruff: noqa: E501, E701, E702
 """Authenticated worker transport with durable SQLite inbox/outbox and retry delivery."""
 from __future__ import annotations
 import asyncio
@@ -143,7 +144,7 @@ class WorkerServer:
             processed=await asyncio.to_thread(self.process_pending)
             if processed==0:
                 try: await asyncio.wait_for(stop_event.wait(),timeout=poll_interval)
-                except asyncio.TimeoutError: pass
+                except TimeoutError: pass
     async def start(self,host: str="127.0.0.1",port: int=0) -> tuple[str,int]:
         self._server=await asyncio.start_server(self._handle,host,port,ssl=self.ssl_context,limit=MAX_MESSAGE_BYTES+1)
         sockets=self._server.sockets
@@ -161,7 +162,7 @@ class WorkerServer:
             accepted=self.store.accept(message)
             writer.write(_canonical(sign_ack(message["message_id"],self.secret,accepted=True,duplicate=not accepted))+b"\n")
             await writer.drain()
-        except (ValueError,asyncio.TimeoutError,TypeError):
+        except (ValueError,TimeoutError,TypeError):
             writer.write(b'{"accepted":false}\n')
             try: await writer.drain()
             except OSError: pass
@@ -197,6 +198,6 @@ class WorkerClient:
                 if len(response)>1024 or not verify_ack(json.loads(response),message_id,self.secret):
                     raise WorkerProtocolError("remote worker rejected message or returned an invalid acknowledgement")
                 self.store.acknowledge(message_id); delivered+=1
-            except (OSError,asyncio.TimeoutError,ValueError,TypeError) as exc:
+            except (OSError,TimeoutError,ValueError,TypeError) as exc:
                 self.store.fail(message_id,str(exc),now=now); failed+=1
         return delivered,failed

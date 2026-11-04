@@ -1,5 +1,6 @@
 # ruff: noqa: E501, E701, E702
 import asyncio
+import pytest
 from chronos.worker import (DurableMessageStore,WorkerClient,WorkerServer,sign_message,verify_message,WorkerProtocolError)
 
 SECRET=b"chronos-test-secret-material-at-least-32-bytes"
@@ -8,11 +9,8 @@ def test_hmac_message_authentication_rejects_tampering():
     doc=sign_message({"message_id":"m1","source":"a","target":"b","kind":"event","payload":{"n":1}},SECRET)
     assert verify_message(doc,SECRET)["payload"]["n"]==1
     doc["message"]["payload"]["n"]=2
-    try:
+    with pytest.raises(WorkerProtocolError,match="authentication"):
         verify_message(doc,SECRET)
-        assert False,"tampered message accepted"
-    except WorkerProtocolError:
-        pass
 
 def test_durable_worker_delivery_and_inbox_deduplication(tmp_path):
     async def scenario():

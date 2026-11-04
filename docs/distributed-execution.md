@@ -11,7 +11,7 @@ Chronos includes a working asynchronous worker message path:
 
 ## Delivery semantics
 
-The sender removes an outbox record only after receiving a valid authenticated acknowledgement. The receiver durably records an inbox message before acknowledging it. Duplicate delivery of the same ID and body is acknowledged without inserting a second inbox row. Reuse of an ID with different content is rejected.
+The worker server can run an inbox polling loop with `run_forever(stop_event)` after it is started, or the application can invoke `process_pending` directly. The sender removes an outbox record only after receiving a valid authenticated acknowledgement. The receiver durably records an inbox message before acknowledging it. Duplicate delivery of the same ID and body is acknowledged without inserting a second inbox row. Reuse of an ID with different content is rejected.
 
 Inbox processing is at-least-once: a process may terminate after a handler performs its side effect but before the processed marker is committed. Handlers must therefore be idempotent or implement their own transactional outbox/inbox boundary. This protocol does not promise exactly-once side effects.
 
