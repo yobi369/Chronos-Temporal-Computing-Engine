@@ -4,7 +4,7 @@ import sys
 import pytest
 from chronos.checkpoint import CheckpointStore
 
-@pytest.mark.parametrize(("stage","expected_generation"),[
+@pytest.mark.parametrize(("stage","expected_generation","expected_exit"),[
     ("before_generation_replace",1,70),
     ("after_generation_replace",1,73),
     ("before_pointer_replace",1,71),
