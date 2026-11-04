@@ -88,3 +88,27 @@ def test_worker_recovers_after_network_partition_and_delivers_durable_message(tm
         finally:
             await server.close()
     asyncio.run(scenario())
+
+
+def test_worker_client_background_delivery_loop_drains_durable_outbox(tmp_path):
+    async def scenario():
+        sender=DurableMessageStore(tmp_path/"sender.db")
+        receiver=DurableMessageStore(tmp_path/"receiver.db")
+        server=WorkerServer("target",SECRET,receiver)
+        host,port=await server.start()
+        client=WorkerClient("source",SECRET,sender)
+        client.publish("target","task",{"n":7},message_id="background-loop")
+        stop=asyncio.Event()
+        task=asyncio.create_task(client.run_forever(host,port,stop,poll_interval=0.01))
+        try:
+            for _ in range(100):
+                if receiver.inbox_pending():
+                    break
+                await asyncio.sleep(0.01)
+            assert receiver.inbox_pending()
+            assert sender.pending_count()==0
+        finally:
+            stop.set()
+            await asyncio.wait_for(task,timeout=1)
+            await server.close()
+    asyncio.run(scenario())

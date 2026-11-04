@@ -187,6 +187,17 @@ class WorkerClient:
         if len(_canonical(document))>MAX_MESSAGE_BYTES: raise WorkerProtocolError("message exceeds maximum size")
         self.store.enqueue(document,self.secret)
         return stable_id
+    async def run_forever(self,host: str,port: int,stop_event: asyncio.Event,*,
+        poll_interval: float=0.25,batch_limit: int=100,timeout: float=3.0) -> None:
+        """Continuously deliver due outbox messages until stop_event is set."""
+        if not math.isfinite(poll_interval) or poll_interval<=0 or batch_limit<1:
+            raise ValueError("poll interval and batch limit must be positive")
+        while not stop_event.is_set():
+            delivered,_failed=await self.deliver_pending(
+                host,port,limit=batch_limit,timeout=timeout)
+            if delivered==0:
+                try: await asyncio.wait_for(stop_event.wait(),timeout=poll_interval)
+                except TimeoutError: pass
     async def deliver_pending(self,host: str,port: int,*,now: float|None=None,
         limit: int=100,timeout: float=3.0) -> tuple[int,int]:
         if limit<1 or not math.isfinite(timeout) or timeout<=0:
