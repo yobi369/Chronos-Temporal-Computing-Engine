@@ -179,12 +179,13 @@ class WorkerClient:
         if not source_id or len(secret)<32: raise ValueError("worker ID and 32-byte secret are required")
         self.source_id=source_id; self.secret=secret; self.store=store; self.ssl_context=ssl_context
     def publish(self,target: str,kind: str,payload: dict[str,Any],*,message_id: str|None=None) -> str:
-        message: dict[str,Any]={"message_id":message_id or str(uuid4()),"source":self.source_id,
+        stable_id=message_id if message_id is not None else str(uuid4())
+        message: dict[str,Any]={"message_id":stable_id,"source":self.source_id,
             "target":target,"kind":kind,"payload":payload}
         document=sign_message(message,self.secret)
         if len(_canonical(document))>MAX_MESSAGE_BYTES: raise WorkerProtocolError("message exceeds maximum size")
         self.store.enqueue(document,self.secret)
-        return message["message_id"]
+        return stable_id
     async def deliver_pending(self,host: str,port: int,*,now: float|None=None,
         limit: int=100,timeout: float=3.0) -> tuple[int,int]:
         delivered=failed=0
