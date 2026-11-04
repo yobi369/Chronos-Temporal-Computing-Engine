@@ -134,7 +134,7 @@ class SimulationEngine:
             self.current_time,
             self._next_sequence,
             copy.deepcopy(self.pending_events),
-            copy.deepcopy(self._history),
+            tuple(copy.deepcopy(self._history)),
             copy.deepcopy(self.state),
             self._clock.value,
         )
