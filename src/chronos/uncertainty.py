@@ -1,3 +1,4 @@
+# ruff: noqa: E501, E701, E702
 """Interval-valued time and probabilistic order propagation."""
 from __future__ import annotations
 from dataclasses import dataclass
