@@ -25,3 +25,30 @@ def test_hybrid_integration_stops_at_next_discrete_event_boundary():
     assert result.reached_boundary==2
     assert result.integration.times[-1]==2
     assert engine.current_time==2
+
+
+def test_rk4_fourth_order_convergence_on_exponential():
+    from chronos.hybrid import integrate_rk4
+    rhs=lambda t,y:(y[0],)
+    coarse=integrate_rk4(rhs,(1.0,),0.0,1.0,0.2).states[-1][0]
+    fine=integrate_rk4(rhs,(1.0,),0.0,1.0,0.1).states[-1][0]
+    exact=2.718281828459045
+    coarse_error=abs(coarse-exact)
+    fine_error=abs(fine-exact)
+    assert coarse_error/fine_error>12.0
+    assert fine_error<coarse_error
+
+def test_adaptive_rk4_meets_requested_local_tolerance():
+    from chronos.hybrid import integrate_adaptive_rk4
+    result=integrate_adaptive_rk4(lambda t,y:(y[0],),(1.0,),0.0,1.0,
+        initial_step=0.5,atol=1e-11,rtol=1e-10)
+    assert result.states[-1][0]==pytest.approx(2.718281828459045,abs=2e-9)
+    assert result.accepted_steps>0
+    assert result.rejected_steps>0
+
+def test_adaptive_rk4_rejects_non_finite_controls_and_state():
+    from chronos.hybrid import integrate_adaptive_rk4
+    with pytest.raises(ValueError):
+        integrate_adaptive_rk4(lambda t,y:(1.0,),(float("nan"),),0.0,1.0,initial_step=0.1)
+    with pytest.raises(ValueError):
+        integrate_adaptive_rk4(lambda t,y:(1.0,),(0.0,),0.0,float("inf"),initial_step=0.1)

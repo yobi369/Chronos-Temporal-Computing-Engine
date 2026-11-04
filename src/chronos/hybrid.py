@@ -67,10 +67,14 @@ def integrate_adaptive_rk4(rhs: Derivative, initial: Vector, start: float, stop:
     initial_step: float, atol: float=1e-9, rtol: float=1e-7, min_step: float=1e-12,
     max_step: float|None=None, max_steps: int=100000) -> IntegrationResult:
     """Step-doubling RK4 controller; estimate is |two half steps - full step|/15."""
-    if initial_step<=0 or atol<=0 or rtol<0 or min_step<=0 or max_steps<1 or stop<start:
-        raise ValueError("invalid adaptive integration controls")
+    controls=(start,stop,initial_step,atol,rtol,min_step)
+    if (not initial or not all(math.isfinite(x) for x in initial)
+        or not all(math.isfinite(x) for x in controls)
+        or initial_step<=0 or atol<=0 or rtol<0 or min_step<=0
+        or max_steps<1 or stop<start):
+        raise ValueError("invalid adaptive integration controls or initial state")
     cap=max_step if max_step is not None else max(initial_step,stop-start)
-    if cap<=0: raise ValueError("max_step must be positive")
+    if not math.isfinite(cap) or cap<=0: raise ValueError("max_step must be finite and positive")
     t=start; y=tuple(initial); h=min(initial_step,cap); times=[t]; states=[y]
     accepted=rejected=0; max_error=0.0; attempts=0
     while t < stop:

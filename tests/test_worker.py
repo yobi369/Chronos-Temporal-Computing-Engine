@@ -45,3 +45,22 @@ def test_durable_outbox_retry_backoff_survives_store_reopen(tmp_path):
         assert reopened.due(now=100)==()
         assert len(reopened.due(now=200))==1
     asyncio.run(scenario())
+
+
+def test_worker_handler_failure_leaves_inbox_for_retry(tmp_path):
+    store=DurableMessageStore(tmp_path/"receiver.db")
+    message={"message_id":"retry-handler","source":"a","target":"b","kind":"task","payload":{"x":1}}
+    assert store.accept(message) is True
+    server=WorkerServer("b",SECRET,store)
+    calls=[]
+    def flaky(message):
+        calls.append(message["message_id"])
+        if len(calls)==1:
+            raise RuntimeError("temporary handler failure")
+    server.register_handler("task",flaky)
+    with pytest.raises(RuntimeError,match="temporary"):
+        server.process_pending()
+    assert len(store.inbox_pending())==1
+    assert server.process_pending()==1
+    assert len(store.inbox_pending())==0
+    assert calls==["retry-handler","retry-handler"]

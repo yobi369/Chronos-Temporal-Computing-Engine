@@ -188,17 +188,26 @@ class WorkerClient:
         return stable_id
     async def deliver_pending(self,host: str,port: int,*,now: float|None=None,
         limit: int=100,timeout: float=3.0) -> tuple[int,int]:
+        if limit<1 or not math.isfinite(timeout) or timeout<=0:
+            raise ValueError("limit and timeout must be positive and finite")
         delivered=failed=0
         for document in self.store.due(now,limit):
             message=document["message"]; message_id=message["message_id"]
+            writer: asyncio.StreamWriter|None=None
             try:
-                reader,writer=await asyncio.wait_for(asyncio.open_connection(host,port,ssl=self.ssl_context),timeout)
-                writer.write(_canonical(document)+b"\n"); await writer.drain()
+                reader,writer=await asyncio.wait_for(
+                    asyncio.open_connection(host,port,ssl=self.ssl_context),timeout)
+                writer.write(_canonical(document)+b"\n")
+                await writer.drain()
                 response=await asyncio.wait_for(reader.readline(),timeout)
-                writer.close(); await writer.wait_closed()
                 if len(response)>1024 or not verify_ack(json.loads(response),message_id,self.secret):
                     raise WorkerProtocolError("remote worker rejected message or returned an invalid acknowledgement")
                 self.store.acknowledge(message_id); delivered+=1
             except (OSError,TimeoutError,ValueError,TypeError) as exc:
                 self.store.fail(message_id,str(exc),now=now); failed+=1
+            finally:
+                if writer is not None:
+                    writer.close()
+                    try: await writer.wait_closed()
+                    except OSError: pass
         return delivered,failed
