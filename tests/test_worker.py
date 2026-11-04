@@ -64,3 +64,27 @@ def test_worker_handler_failure_leaves_inbox_for_retry(tmp_path):
     assert server.process_pending()==1
     assert len(store.inbox_pending())==0
     assert calls==["retry-handler","retry-handler"]
+
+
+def test_worker_recovers_after_network_partition_and_delivers_durable_message(tmp_path):
+    async def scenario():
+        sender=DurableMessageStore(tmp_path/"sender.db")
+        receiver=DurableMessageStore(tmp_path/"receiver.db")
+        client=WorkerClient("source",SECRET,sender)
+        client.publish("target","task",{"value":"recovered"},message_id="partition-message")
+        delivered,failed=await client.deliver_pending("127.0.0.1",1,now=100,timeout=0.05)
+        assert (delivered,failed)==(0,1)
+        assert sender.pending_count()==1
+        server=WorkerServer("target",SECRET,receiver)
+        handled=[]
+        server.register_handler("task",lambda message: handled.append(message["payload"]["value"]))
+        host,port=await server.start()
+        try:
+            delivered,failed=await client.deliver_pending(host,port,now=101)
+            assert (delivered,failed)==(1,0)
+            assert sender.pending_count()==0
+            assert server.process_pending()==1
+            assert handled==["recovered"]
+        finally:
+            await server.close()
+    asyncio.run(scenario())
