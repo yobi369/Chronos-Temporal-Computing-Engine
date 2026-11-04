@@ -17,7 +17,7 @@ class TimeInterval:
         return self.lower < other.upper
     def overlaps(self, other: TimeInterval) -> bool:
         return not (self.definitely_before(other) or other.definitely_before(self))
-    def intersection(self, other: TimeInterval) -> "TimeInterval|None":
+    def intersection(self, other: TimeInterval) -> TimeInterval | None:
         lo=max(self.lower,other.lower); hi=min(self.upper,other.upper)
         return TimeInterval(lo,hi) if lo<=hi else None
     def hull(self, other: TimeInterval) -> TimeInterval:
