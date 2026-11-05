@@ -196,3 +196,17 @@ def test_failed_atomic_replace_preserves_existing_file(tmp_path, monkeypatch):
 
     assert target.read_text(encoding="utf-8") == "previous committed contents"
     assert list(tmp_path.glob(".experiment.json.*.tmp")) == []
+
+
+def test_event_log_rejects_malformed_in_memory_event_fields():
+    from dataclasses import replace
+
+    engine, inputs = build_run()
+    log = EventLog.capture(engine, inputs)
+    malformed_event = replace(log.events[0], sequence=True)
+    malformed = EventLog(
+        log.timeline_id, log.initial_events, (malformed_event,),
+        log.final_state_digest, payload_schemas=log.payload_schemas,
+    )
+    with pytest.raises(EventLogError, match="invalid fields"):
+        event_log_to_json(malformed)
