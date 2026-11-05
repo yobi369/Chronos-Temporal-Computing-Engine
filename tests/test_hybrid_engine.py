@@ -53,3 +53,22 @@ def test_adaptive_rk4_rejects_non_finite_controls_and_state():
         integrate_adaptive_rk4(lambda t,y:(1.0,),(float("nan"),),0.0,1.0,initial_step=0.1)
     with pytest.raises(ValueError):
         integrate_adaptive_rk4(lambda t,y:(1.0,),(0.0,),0.0,float("inf"),initial_step=0.1)
+
+
+def test_resuming_from_root_does_not_emit_same_root_again():
+    engine = SimulationEngine()
+    engine.register("threshold", lambda event, sim: None)
+    root = lambda t, y: y[0] - 1.0
+    first = engine.integrate_continuous(
+        lambda t, y: (1.0,), (0.0,), start=0.0, stop=2.0, step=0.5,
+        root_events={"hit": ("threshold", root, {})},
+    )
+    assert first.root_event is not None
+    assert first.root_event.time == pytest.approx(1.0)
+    resumed = engine.integrate_continuous(
+        lambda t, y: (1.0,), first.root_event.state,
+        start=first.root_event.time, stop=2.0, step=0.25,
+        root_events={"hit": ("threshold", root, {})},
+    )
+    assert resumed.root_event is None
+    assert resumed.reached_boundary == 2.0
