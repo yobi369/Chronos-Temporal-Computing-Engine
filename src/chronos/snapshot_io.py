@@ -66,6 +66,8 @@ def _decode_engine(raw: Any) -> EngineSnapshot:
     all_events = (*queue, *history)
     if len({e.sequence for e in all_events}) != len(all_events):
         raise EventLogError("snapshot contains duplicate event sequences")
+    if len({e.event_id for e in all_events}) != len(all_events):
+        raise EventLogError("snapshot contains duplicate event IDs")
     if any(e.sequence >= next_sequence for e in all_events):
         raise EventLogError("snapshot next_sequence does not exceed all event sequences")
     if validate_event_log(history):
