@@ -143,7 +143,7 @@ def integrate_to_root(rhs: Derivative, initial: Vector, start: float, stop: floa
             if _crosses(before,after):
                 rt,ry,v0,v1=_locate_root(rhs,fn,t,y,next_t,next_y,
                     tolerance=tolerance,max_iterations=max_root_iterations)
-                if rt>start+tolerance or abs(before)<=tolerance:
+                if rt>start+tolerance:
                     candidates.append(RootEvent(name,rt,ry,v0,v1))
         if candidates:
             event=min(candidates,key=lambda item:(item.time,item.name))
