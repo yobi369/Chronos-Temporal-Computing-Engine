@@ -1,7 +1,5 @@
 import json
 
-import pytest
-
 from chronos.event_log import EventLog, event_log_to_json, state_digest
 
 
