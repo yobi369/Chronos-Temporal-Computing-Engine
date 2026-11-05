@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from chronos.engine import SimulationEngine
 from chronos.event_log import (
     EventInput,
     EventLog,
@@ -11,7 +12,22 @@ from chronos.event_log import (
     event_log_to_json,
 )
 from chronos.event_log_migration import migrate_event_log_v1_to_v2
-from test_event_log import build_run
+
+
+def build_run():
+    engine = SimulationEngine("migration-fixture")
+
+    def increment(event, simulation):
+        simulation.state["total"] = simulation.state.get("total", 0) + event.payload["amount"]
+        if event.payload.get("spawn"):
+            simulation.schedule(event.time + 1, "increment", {"amount": 3})
+
+    engine.register("increment", increment)
+    inputs = (EventInput(2, "increment", {"amount": 4, "spawn": True}),)
+    for item in inputs:
+        engine.schedule(item.time, item.event_type, item.payload)
+    engine.run()
+    return engine, inputs
 
 
 def legacy_log():
@@ -40,7 +56,12 @@ def test_v1_migration_is_explicit_non_mutating_and_round_trips():
 
 def test_v1_migration_validates_optional_payload_contracts():
     legacy = legacy_log()
-    schema = {"increment": PayloadSchema(required={"amount": "integer"}, optional={"spawn": "boolean"})}
+    schema = {
+        "increment": PayloadSchema(
+            required={"amount": "integer"},
+            optional={"spawn": "boolean"},
+        )
+    }
     migrated = migrate_event_log_v1_to_v2(legacy, payload_schemas=schema)
     assert migrated.payload_schemas == schema
 
