@@ -41,6 +41,7 @@ def test_snapshot_rejects_duplicate_event_ids_across_queue_and_history():
     snapshot = engine_snapshot()
     queued = snapshot.queue[0]
     historical = replace(queued, time=0, sequence=0)
-    malformed = replace(snapshot, history=(historical,))
+    queued = replace(queued, sequence=1)
+    malformed = replace(snapshot, queue=(queued,), history=(historical,), next_sequence=2)
     with pytest.raises(EventLogError, match="duplicate event IDs"):
         snapshot_from_json(snapshot_to_json(malformed))
