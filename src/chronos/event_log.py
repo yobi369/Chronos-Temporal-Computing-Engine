@@ -145,7 +145,7 @@ def _validate_json_value(value: Any, path: str = "$") -> None:
             _validate_json_value(item, f"{path}.{key}")
         return
     raise EventLogError(
-        f"{path} contains unsupported JSON data: {type(value).__name__}"
+        f"{path} is not canonical JSON data: unsupported {type(value).__name__}"
     )
 
 
