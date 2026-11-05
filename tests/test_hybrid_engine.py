@@ -58,7 +58,8 @@ def test_adaptive_rk4_rejects_non_finite_controls_and_state():
 def test_resuming_from_root_does_not_emit_same_root_again():
     engine = SimulationEngine()
     engine.register("threshold", lambda event, sim: None)
-    root = lambda t, y: y[0] - 1.0
+    def root(t, y):
+        return y[0] - 1.0
     first = engine.integrate_continuous(
         lambda t, y: (1.0,), (0.0,), start=0.0, stop=2.0, step=0.5,
         root_events={"hit": ("threshold", root, {})},
