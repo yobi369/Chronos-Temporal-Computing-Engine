@@ -258,6 +258,32 @@ def _validate_log(log: EventLog) -> None:
         or any(character not in "0123456789abcdef" for character in digest)
     ):
         raise EventLogError("final_state_digest must be a lowercase SHA-256 hex digest")
+    if not isinstance(log.initial_events, tuple) or not isinstance(log.events, tuple):
+        raise EventLogError("initial_events and events must be tuples")
+    for index, item in enumerate(log.initial_events):
+        if not isinstance(item, EventInput):
+            raise EventLogError(f"initial_events[{index}] must be an EventInput")
+        if (
+            isinstance(item.time, bool) or not isinstance(item.time, int) or item.time < 0
+            or not isinstance(item.event_type, str) or not item.event_type
+            or not isinstance(item.payload, dict)
+            or (item.parent_event_id is not None
+                and (not isinstance(item.parent_event_id, str) or not item.parent_event_id))
+        ):
+            raise EventLogError(f"initial_events[{index}] has invalid fields")
+    for index, event in enumerate(log.events):
+        if not isinstance(event, Event):
+            raise EventLogError(f"events[{index}] must be an Event")
+        if (
+            not isinstance(event.event_id, str) or not event.event_id
+            or isinstance(event.time, bool) or not isinstance(event.time, int) or event.time < 0
+            or isinstance(event.sequence, bool) or not isinstance(event.sequence, int) or event.sequence < 0
+            or not isinstance(event.event_type, str) or not event.event_type
+            or not isinstance(event.payload, dict)
+            or (event.parent_event_id is not None
+                and (not isinstance(event.parent_event_id, str) or not event.parent_event_id))
+        ):
+            raise EventLogError(f"events[{index}] has invalid fields")
     if validate_event_log(log.events):
         raise EventLogError("event log contains inconsistent execution history")
     if not isinstance(log.payload_schemas, Mapping):
