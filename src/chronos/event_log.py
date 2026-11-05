@@ -3,19 +3,24 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import tempfile
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from chronos.engine import SimulationEngine
 from chronos.events import Event
 from chronos.validation import validate_event_log
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+LEGACY_SCHEMA_VERSION = 1
+SUPPORTED_SCHEMA_VERSIONS = frozenset({LEGACY_SCHEMA_VERSION, SCHEMA_VERSION})
 DEFAULT_MAX_LOG_BYTES = 16 * 1024 * 1024
+PAYLOAD_TYPES = frozenset({"array", "boolean", "integer", "null", "number", "object", "string"})
 
 
 class EventLogError(ValueError):
@@ -24,6 +29,37 @@ class EventLogError(ValueError):
 
 class ReplayMismatchError(EventLogError):
     """Raised when replay does not reproduce the recorded execution."""
+
+
+@dataclass(frozen=True, slots=True)
+class PayloadSchema:
+    """Small, dependency-free object schema for one event type's payload."""
+
+    required: Mapping[str, str] = field(default_factory=dict)
+    optional: Mapping[str, str] = field(default_factory=dict)
+    allow_additional_properties: bool = False
+
+    def __post_init__(self) -> None:
+        for label, properties in (("required", self.required), ("optional", self.optional)):
+            if not isinstance(properties, Mapping):
+                raise ValueError(f"{label} payload properties must be a mapping")
+            for name, value_type in properties.items():
+                if not isinstance(name, str) or not name:
+                    raise ValueError("payload property names must be non-empty strings")
+                if not isinstance(value_type, str) or value_type not in PAYLOAD_TYPES:
+                    raise ValueError(
+                        f"unsupported payload type for {name!r}: {value_type!r}"
+                    )
+        if set(self.required) & set(self.optional):
+            raise ValueError("payload properties cannot be both required and optional")
+        if type(self.allow_additional_properties) is not bool:
+            raise ValueError("allow_additional_properties must be a boolean")
+        object.__setattr__(
+            self, "required", MappingProxyType(dict(sorted(self.required.items())))
+        )
+        object.__setattr__(
+            self, "optional", MappingProxyType(dict(sorted(self.optional.items())))
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +78,10 @@ class EventInput:
             raise ValueError("input event type must not be empty")
         if not isinstance(self.payload, dict):
             raise ValueError("input event payload must be an object")
+        if self.parent_event_id is not None and (
+            not isinstance(self.parent_event_id, str) or not self.parent_event_id
+        ):
+            raise ValueError("input parent_event_id must be a non-empty string or null")
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,21 +93,65 @@ class EventLog:
     events: tuple[Event, ...]
     final_state_digest: str
     schema_version: int = SCHEMA_VERSION
+    payload_schemas: Mapping[str, PayloadSchema] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.payload_schemas, Mapping):
+            object.__setattr__(
+                self, "payload_schemas", MappingProxyType(dict(self.payload_schemas))
+            )
 
     @classmethod
     def capture(
-        cls, engine: SimulationEngine, initial_events: Iterable[EventInput]
+        cls,
+        engine: SimulationEngine,
+        initial_events: Iterable[EventInput],
+        *,
+        payload_schemas: Mapping[str, PayloadSchema] | None = None,
     ) -> EventLog:
-        """Capture a completed engine run and its explicit external inputs."""
+        """Capture a completed engine run, explicit inputs, and optional payload contracts."""
         return cls(
             timeline_id=engine.timeline_id,
             initial_events=tuple(initial_events),
             events=engine.history,
             final_state_digest=state_digest(engine.state),
+            payload_schemas=dict(payload_schemas or {}),
         )
 
 
+def _validate_json_value(value: Any, path: str = "$") -> None:
+    """Reject Python values that JSON would silently coerce or serialize ambiguously."""
+    if value is None or type(value) in (bool, int):
+        return
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise EventLogError(f"{path} contains text that is not valid UTF-8") from exc
+        return
+    if type(value) is float:
+        if not math.isfinite(value):
+            raise EventLogError(f"{path} contains a non-finite number")
+        return
+    if type(value) is list:
+        for index, item in enumerate(value):
+            _validate_json_value(item, f"{path}[{index}]")
+        return
+    if type(value) is dict:
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise EventLogError(f"{path} contains a non-string object key")
+            _validate_json_value(key, f"{path}.<key>")
+            _validate_json_value(item, f"{path}.{key}")
+        return
+    raise EventLogError(
+        f"{path} contains unsupported JSON data: {type(value).__name__}"
+    )
+
+
 def _canonical_json(value: Any) -> str:
+    """Encode Chronos canonical JSON: UTF-8 text, sorted keys, compact separators, finite values."""
+    _validate_json_value(value)
     try:
         return json.dumps(
             value,
@@ -81,7 +165,9 @@ def _canonical_json(value: Any) -> str:
 
 
 def state_digest(state: dict[str, Any]) -> str:
-    """Return SHA-256 over canonical JSON state; rejects non-JSON values."""
+    """Return SHA-256 over canonical JSON state; rejects non-object or non-JSON values."""
+    if not isinstance(state, dict) or any(not isinstance(key, str) for key in state):
+        raise EventLogError("state must be a JSON object with string keys")
     encoded = _canonical_json(state).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
@@ -106,19 +192,116 @@ def _input_to_dict(event: EventInput) -> dict[str, Any]:
     }
 
 
-def event_log_to_json(log: EventLog) -> str:
-    """Serialize an event log using stable key ordering and compact JSON."""
-    if log.schema_version != SCHEMA_VERSION:
+def _payload_schema_to_dict(schema: PayloadSchema) -> dict[str, Any]:
+    return {
+        "required": dict(schema.required),
+        "optional": dict(schema.optional),
+        "allow_additional_properties": schema.allow_additional_properties,
+    }
+
+
+def _payload_matches_type(value: Any, expected: str) -> bool:
+    if expected == "null":
+        return value is None
+    if expected == "boolean":
+        return type(value) is bool
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "array":
+        return type(value) is list
+    if expected == "object":
+        return type(value) is dict and all(isinstance(key, str) for key in value)
+    return False
+
+
+def _validate_payload(
+    event_type: str,
+    payload: dict[str, Any],
+    schemas: Mapping[str, PayloadSchema],
+    label: str,
+) -> None:
+    if not isinstance(payload, dict) or any(not isinstance(key, str) for key in payload):
+        raise EventLogError(f"{label} payload must be an object with string keys")
+    _canonical_json(payload)
+    if not schemas:
+        return
+    schema = schemas.get(event_type)
+    if schema is None:
+        raise EventLogError(f"{label} has no payload schema for event type {event_type!r}")
+    declared = set(schema.required) | set(schema.optional)
+    missing = set(schema.required) - set(payload)
+    extra = set(payload) - declared
+    if missing:
+        raise EventLogError(f"{label} payload is missing required properties: {sorted(missing)}")
+    if extra and not schema.allow_additional_properties:
+        raise EventLogError(f"{label} payload has undeclared properties: {sorted(extra)}")
+    for name, expected in (*schema.required.items(), *schema.optional.items()):
+        if name in payload and not _payload_matches_type(payload[name], expected):
+            raise EventLogError(
+                f"{label} payload property {name!r} must be {expected}"
+            )
+
+
+def _validate_log(log: EventLog) -> None:
+    if type(log.schema_version) is not int or log.schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         raise EventLogError(f"unsupported event-log schema version: {log.schema_version}")
+    if not isinstance(log.timeline_id, str) or not log.timeline_id:
+        raise EventLogError("timeline_id must be a non-empty string")
+    digest = log.final_state_digest
+    if (
+        not isinstance(digest, str)
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+    ):
+        raise EventLogError("final_state_digest must be a lowercase SHA-256 hex digest")
     if validate_event_log(log.events):
         raise EventLogError("event log contains inconsistent execution history")
-    document = {
+    if not isinstance(log.payload_schemas, Mapping):
+        raise EventLogError("payload_schemas must be a mapping")
+    for event_type, schema in log.payload_schemas.items():
+        if not isinstance(event_type, str) or not event_type:
+            raise EventLogError("payload schema event types must be non-empty strings")
+        if not isinstance(schema, PayloadSchema):
+            raise EventLogError(f"payload schema for {event_type!r} is invalid")
+        try:
+            PayloadSchema(
+                required=schema.required,
+                optional=schema.optional,
+                allow_additional_properties=schema.allow_additional_properties,
+            )
+        except ValueError as exc:
+            raise EventLogError(str(exc)) from exc
+    if log.schema_version == LEGACY_SCHEMA_VERSION and log.payload_schemas:
+        raise EventLogError("schema version 1 cannot contain payload schemas")
+    for index, item in enumerate(log.initial_events):
+        _validate_payload(
+            item.event_type, item.payload, log.payload_schemas, f"initial_events[{index}]"
+        )
+    for index, event in enumerate(log.events):
+        _validate_payload(
+            event.event_type, event.payload, log.payload_schemas, f"events[{index}]"
+        )
+
+
+def event_log_to_json(log: EventLog) -> str:
+    """Serialize an event log using stable key ordering and compact JSON."""
+    _validate_log(log)
+    document: dict[str, Any] = {
         "schema_version": log.schema_version,
         "timeline_id": log.timeline_id,
         "initial_events": [_input_to_dict(item) for item in log.initial_events],
         "events": [_event_to_dict(item) for item in log.events],
         "final_state_digest": log.final_state_digest,
     }
+    if log.schema_version == SCHEMA_VERSION:
+        document["payload_schemas"] = {
+            event_type: _payload_schema_to_dict(schema)
+            for event_type, schema in sorted(log.payload_schemas.items())
+        }
     return _canonical_json(document)
 
 
@@ -129,6 +312,10 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
             raise EventLogError(f"duplicate JSON object key: {key}")
         result[key] = value
     return result
+
+
+def _reject_constant(token: str) -> Any:
+    raise EventLogError(f"non-standard JSON numeric constant is not allowed: {token}")
 
 
 def _require_object(value: Any, expected_keys: set[str], label: str) -> dict[str, Any]:
@@ -143,6 +330,25 @@ def _require_int(value: Any, label: str) -> int:
     return value
 
 
+def _require_bool(value: Any, label: str) -> bool:
+    if type(value) is not bool:
+        raise EventLogError(f"{label} must be a boolean")
+    return value
+
+
+def _require_field_types(value: Any, label: str) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise EventLogError(f"{label} must be an object")
+    result: dict[str, str] = {}
+    for name, value_type in value.items():
+        if not isinstance(name, str) or not name:
+            raise EventLogError(f"{label} property names must be non-empty strings")
+        if not isinstance(value_type, str) or value_type not in PAYLOAD_TYPES:
+            raise EventLogError(f"{label}.{name} has an unsupported payload type")
+        result[name] = value_type
+    return result
+
+
 def _require_payload(value: Any, label: str) -> dict[str, Any]:
     if not isinstance(value, dict) or any(not isinstance(key, str) for key in value):
         raise EventLogError(f"{label} must be an object with string keys")
@@ -150,35 +356,82 @@ def _require_payload(value: Any, label: str) -> dict[str, Any]:
     return value
 
 
+def _parse_payload_schemas(value: Any) -> dict[str, PayloadSchema]:
+    if not isinstance(value, dict):
+        raise EventLogError("payload_schemas must be an object")
+    schemas: dict[str, PayloadSchema] = {}
+    for event_type, raw_schema in value.items():
+        if not isinstance(event_type, str) or not event_type:
+            raise EventLogError("payload schema event types must be non-empty strings")
+        schema = _require_object(
+            raw_schema,
+            {"required", "optional", "allow_additional_properties"},
+            f"payload_schemas[{event_type!r}]",
+        )
+        try:
+            schemas[event_type] = PayloadSchema(
+                required=_require_field_types(
+                    schema["required"], f"payload_schemas[{event_type!r}].required"
+                ),
+                optional=_require_field_types(
+                    schema["optional"], f"payload_schemas[{event_type!r}].optional"
+                ),
+                allow_additional_properties=_require_bool(
+                    schema["allow_additional_properties"],
+                    f"payload_schemas[{event_type!r}].allow_additional_properties",
+                ),
+            )
+        except ValueError as exc:
+            raise EventLogError(str(exc)) from exc
+    return schemas
+
+
 def event_log_from_json(source: str) -> EventLog:
-    """Parse and strictly validate a version-1 event log."""
+    """Parse and strictly validate event-log schema versions 1 and 2."""
     try:
-        document = json.loads(source, object_pairs_hook=_reject_duplicate_keys)
+        document = json.loads(
+            source,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_constant,
+        )
     except json.JSONDecodeError as exc:
         raise EventLogError(f"invalid event-log JSON: {exc}") from exc
-    document = _require_object(
-        document,
-        {"schema_version", "timeline_id", "initial_events", "events", "final_state_digest"},
-        "event log",
-    )
-    version = _require_int(document["schema_version"], "schema_version")
-    if version != SCHEMA_VERSION:
+    if not isinstance(document, dict):
+        raise EventLogError("event log must be a JSON object")
+    version = _require_int(document.get("schema_version"), "schema_version")
+    if version not in SUPPORTED_SCHEMA_VERSIONS:
         raise EventLogError(f"unsupported event-log schema version: {version}")
+    expected_keys = {
+        "schema_version",
+        "timeline_id",
+        "initial_events",
+        "events",
+        "final_state_digest",
+    }
+    if version == SCHEMA_VERSION:
+        expected_keys.add("payload_schemas")
+    document = _require_object(document, expected_keys, "event log")
+
     timeline_id = document["timeline_id"]
     digest = document["final_state_digest"]
     if not isinstance(timeline_id, str) or not timeline_id:
         raise EventLogError("timeline_id must be a non-empty string")
-    if not isinstance(digest, str) or len(digest) != 64:
-        raise EventLogError("final_state_digest must be a SHA-256 hex digest")
-    try:
-        int(digest, 16)
-    except ValueError as exc:
-        raise EventLogError("final_state_digest must be hexadecimal") from exc
+    if (
+        not isinstance(digest, str)
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+    ):
+        raise EventLogError("final_state_digest must be a lowercase SHA-256 hex digest")
 
     raw_inputs = document["initial_events"]
     raw_events = document["events"]
     if not isinstance(raw_inputs, list) or not isinstance(raw_events, list):
         raise EventLogError("initial_events and events must be arrays")
+    schemas = (
+        _parse_payload_schemas(document["payload_schemas"])
+        if version == SCHEMA_VERSION
+        else {}
+    )
 
     inputs: list[EventInput] = []
     for index, raw in enumerate(raw_inputs):
@@ -192,16 +445,16 @@ def event_log_from_json(source: str) -> EventLog:
         parent = item["parent_event_id"]
         if not isinstance(event_type, str) or not event_type:
             raise EventLogError(f"initial_events[{index}].event_type must be non-empty")
-        if parent is not None and not isinstance(parent, str):
+        if parent is not None and (not isinstance(parent, str) or not parent):
             raise EventLogError(
-                f"initial_events[{index}].parent_event_id must be a string or null"
+                f"initial_events[{index}].parent_event_id must be a non-empty string or null"
             )
         try:
             inputs.append(
                 EventInput(
                     time,
                     event_type,
-                    _require_payload(item["payload"], "payload"),
+                    _require_payload(item["payload"], f"initial_events[{index}].payload"),
                     parent,
                 )
             )
@@ -222,8 +475,10 @@ def event_log_from_json(source: str) -> EventLog:
             raise EventLogError(f"events[{index}].event_id must be non-empty")
         if not isinstance(event_type, str) or not event_type:
             raise EventLogError(f"events[{index}].event_type must be non-empty")
-        if parent is not None and not isinstance(parent, str):
-            raise EventLogError(f"events[{index}].parent_event_id must be a string or null")
+        if parent is not None and (not isinstance(parent, str) or not parent):
+            raise EventLogError(
+                f"events[{index}].parent_event_id must be a non-empty string or null"
+            )
         try:
             events.append(
                 Event(
@@ -231,16 +486,16 @@ def event_log_from_json(source: str) -> EventLog:
                     time=_require_int(item["time"], f"events[{index}].time"),
                     sequence=_require_int(item["sequence"], f"events[{index}].sequence"),
                     event_type=event_type,
-                    payload=_require_payload(item["payload"], "payload"),
+                    payload=_require_payload(item["payload"], f"events[{index}].payload"),
                     parent_event_id=parent,
                 )
             )
         except ValueError as exc:
             raise EventLogError(str(exc)) from exc
 
-    if validate_event_log(events):
-        raise EventLogError("event log contains inconsistent execution history")
-    return EventLog(timeline_id, tuple(inputs), tuple(events), digest, version)
+    log = EventLog(timeline_id, tuple(inputs), tuple(events), digest, version, schemas)
+    _validate_log(log)
+    return log
 
 
 def write_event_log(path: str | Path, log: EventLog) -> None:
@@ -269,8 +524,8 @@ def read_event_log(
     path: str | Path, *, max_bytes: int = DEFAULT_MAX_LOG_BYTES
 ) -> EventLog:
     """Read a bounded event log; reject oversized files before parsing."""
-    if max_bytes <= 0:
-        raise ValueError("max_bytes must be positive")
+    if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes <= 0:
+        raise ValueError("max_bytes must be a positive integer")
     with Path(path).open("rb") as source:
         content = source.read(max_bytes + 1)
     if len(content) > max_bytes:
@@ -285,8 +540,9 @@ def replay_event_log(
     log: EventLog, handlers: dict[str, Any], *, max_events: int = 100_000
 ) -> SimulationEngine:
     """Re-execute explicit inputs and verify history plus final state digest."""
-    if max_events < 0:
-        raise ValueError("max_events must be non-negative")
+    if isinstance(max_events, bool) or not isinstance(max_events, int) or max_events < 0:
+        raise ValueError("max_events must be a non-negative integer")
+    _validate_log(log)
     if len(log.events) > max_events:
         raise EventLogError("recorded history exceeds the replay event limit")
     engine = SimulationEngine(log.timeline_id)

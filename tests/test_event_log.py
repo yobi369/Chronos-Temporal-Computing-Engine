@@ -7,6 +7,7 @@ from chronos.event_log import (
     EventInput,
     EventLog,
     EventLogError,
+    PayloadSchema,
     ReplayMismatchError,
     event_log_from_json,
     event_log_to_json,
@@ -105,3 +106,93 @@ def test_oversized_file_is_rejected(tmp_path):
     target.write_text("{}" * 100, encoding="utf-8")
     with pytest.raises(EventLogError, match="read limit"):
         read_event_log(target, max_bytes=10)
+
+
+def test_payload_schemas_are_versioned_and_enforced_during_replay():
+    engine, inputs = build_run()
+    schemas = {
+        "increment": PayloadSchema(
+            required={"amount": "integer"},
+            optional={"spawn": "boolean"},
+        )
+    }
+    log = EventLog.capture(engine, inputs, payload_schemas=schemas)
+    encoded = event_log_to_json(log)
+    parsed = event_log_from_json(encoded)
+    assert parsed.schema_version == 2
+    assert parsed.payload_schemas == schemas
+    assert replay_event_log(parsed, handlers()).state == engine.state
+
+
+def test_payload_schema_rejects_wrong_types_and_undeclared_fields():
+    engine, inputs = build_run()
+    schemas = {"increment": PayloadSchema(required={"amount": "integer"})}
+    log = EventLog.capture(engine, inputs, payload_schemas=schemas)
+    invalid_input = EventInput(2, "increment", {"amount": True})
+    invalid_log = EventLog(
+        log.timeline_id,
+        (invalid_input,),
+        log.events,
+        log.final_state_digest,
+        payload_schemas=schemas,
+    )
+    with pytest.raises(EventLogError, match="must be integer"):
+        event_log_to_json(invalid_log)
+
+    extra_input = EventInput(2, "increment", {"amount": 4, "unlisted": "value"})
+    invalid_log = EventLog(
+        log.timeline_id,
+        (extra_input,),
+        log.events,
+        log.final_state_digest,
+        payload_schemas=schemas,
+    )
+    with pytest.raises(EventLogError, match="undeclared"):
+        event_log_to_json(invalid_log)
+
+
+def test_schema_v1_logs_remain_readable_and_round_trip_without_schema_metadata():
+    engine, inputs = build_run()
+    document = json.loads(event_log_to_json(EventLog.capture(engine, inputs)))
+    document["schema_version"] = 1
+    document.pop("payload_schemas")
+    legacy = event_log_from_json(json.dumps(document))
+    assert legacy.schema_version == 1
+    assert legacy.payload_schemas == {}
+    assert event_log_from_json(event_log_to_json(legacy)) == legacy
+
+
+@pytest.mark.parametrize(
+    "invalid_state",
+    [
+        {1: "non-string key"},
+        {"tuple": (1, 2)},
+        {"nested": {"bad": float("inf")}},
+    ],
+)
+def test_state_digest_rejects_non_canonical_python_values(invalid_state):
+    with pytest.raises(EventLogError):
+        state_digest(invalid_state)
+
+
+def test_non_standard_json_constants_are_rejected():
+    with pytest.raises(EventLogError, match="non-standard JSON"):
+        event_log_from_json('{"schema_version":NaN}')
+
+
+def test_failed_atomic_replace_preserves_existing_file(tmp_path, monkeypatch):
+    import chronos.event_log as event_log_module
+
+    engine, inputs = build_run()
+    target = tmp_path / "experiment.json"
+    target.write_text("previous committed contents", encoding="utf-8")
+
+    def fail_replace(source, destination):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(event_log_module.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="simulated"):
+        write_event_log(target, EventLog.capture(engine, inputs))
+
+    assert target.read_text(encoding="utf-8") == "previous committed contents"
+    assert list(tmp_path.glob(".experiment.json.*.tmp")) == []

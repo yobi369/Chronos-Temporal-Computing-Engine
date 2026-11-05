@@ -4,7 +4,7 @@ from chronos.checkpoint import CheckpointError, CheckpointStore
 from chronos.clock import LogicalClock
 from chronos.distributed import CausalReconciliationError, DistributedEvent, reconcile_events
 from chronos.engine import SimulationEngine
-from chronos.event_log import (EventInput, EventLog, EventLogError, ReplayMismatchError,
+from chronos.event_log import (EventInput, EventLog, EventLogError, PayloadSchema, ReplayMismatchError,
     event_log_from_json, event_log_to_json, read_event_log, replay_event_log,
     state_digest, write_event_log)
 from chronos.events import Event
@@ -25,7 +25,7 @@ from chronos.vector_clock import VectorClock
 __all__ = [
     "Always", "AlwaysWithin", "And", "Atom", "Boolean", "Compare", "CausalGraph", "CausalReconciliationError",
     "CheckpointError", "CheckpointStore", "DistributedEvent", "DurableMessageStore", "Event", "Expr", "Field", "EventInput",
-    "EventLog", "EventLogError", "Eventually", "EventuallyWithin", "ExperimentManifest",
+    "EventLog", "EventLogError", "PayloadSchema", "Eventually", "EventuallyWithin", "ExperimentManifest",
     "HybridIntegrationResult", "IntegrationResult", "Literal", "LogicalClock", "ModelCheckResult", "ModelCheckingLimitError",
     "Next", "Not", "OrderProbability", "Or", "ProbabilityEstimate", "Release", "RootEvent", "ReplayMismatchError", "SNAPSHOT_SCHEMA_VERSION",
     "SimulationEngine", "SymbolicCheckResult", "SymbolicLimitError", "TimeInterval", "Timeline", "Until", "VectorClock",
