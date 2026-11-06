@@ -75,7 +75,7 @@ The schema registry is part of version-2 event-log data, so the contract travels
 
 Handlers must be deterministic with respect to recorded inputs and explicitly controlled state. Hidden dependencies such as wall-clock time, network responses, random values, environment variables, mutable global state, or external files must be captured as inputs or controlled by the experiment. The replay API executes Python handlers; it is not a sandbox for untrusted code.
 
-## Persistence limits
+## Reproducibility checks\n\nThe test suite includes randomized input histories, a 4,096-event persisted replay, and a fresh-interpreter subprocess test. The subprocess test reads the serialized log in a separate Python process, re-registers the deterministic handler, replays only recorded initial inputs, and compares the resulting state digest and history length with the captured run. CI exercises this check across the configured operating systems and Python versions; it is evidence for those tested environments, not a guarantee across every Python implementation or runtime version.\n\n## Persistence limits
 
 The writer stores to a temporary file in the destination directory, flushes and fsyncs that file, then atomically replaces the target. A failed replacement leaves the previous target intact and removes the temporary file. The reader enforces a configurable byte limit before parsing. This is a local single-writer file operation, not a multi-writer database, distributed event store, signed audit log, or general power-loss durability guarantee. Filesystem and storage-controller behavior still require deployment-specific testing.
 
