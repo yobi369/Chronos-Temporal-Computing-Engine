@@ -57,15 +57,24 @@ def test_adaptive_rk4_rejects_non_finite_controls_and_state():
 
 def test_resuming_from_root_does_not_emit_same_root_again():
     engine = SimulationEngine()
-    engine.register("threshold", lambda event, sim: None)
+    dispatched = []
+    engine.register("threshold", lambda event, sim: dispatched.append(event.event_id))
+
     def root(t, y):
         return y[0] - 1.0
+
     first = engine.integrate_continuous(
         lambda t, y: (1.0,), (0.0,), start=0.0, stop=2.0, step=0.5,
         root_events={"hit": ("threshold", root, {})},
     )
     assert first.root_event is not None
     assert first.root_event.time == pytest.approx(1.0)
+
+    # The localized root is queued as a discrete event. Dispatch it at the
+    # boundary before advancing the continuous state beyond that boundary.
+    assert len(engine.run()) == 1
+    assert len(dispatched) == 1
+
     resumed = engine.integrate_continuous(
         lambda t, y: (1.0,), first.root_event.state,
         start=first.root_event.time, stop=2.0, step=0.25,
@@ -73,3 +82,4 @@ def test_resuming_from_root_does_not_emit_same_root_again():
     )
     assert resumed.root_event is None
     assert resumed.reached_boundary == 2.0
+    assert len(dispatched) == 1
