@@ -5,7 +5,7 @@ A completed software milestone is not evidence for a physical theory.
 ## Milestone 1 — deterministic temporal core
 - [x] Deterministic discrete-event scheduler.
 - [x] Event-parent provenance, Lamport and vector clocks.
-- [x] In-process snapshots, timeline forks, causal graph, initial tests and CI.
+- [x] In-process snapshots, isolated timeline forks, causal graph, initial tests and CI.
 
 ## Milestone 2 — reproducibility and formal semantics
 - [x] Canonical versioned event logs, bounded local persistence, deterministic replay and final-state digest.
@@ -23,27 +23,25 @@ A completed software milestone is not evidence for a physical theory.
 
 ## Milestone 4 — distributed event semantics
 - [x] Distributed event envelopes, duplicate/conflict detection and deterministic causal topological reconciliation.
-- [ ] Authenticated transport, durable inbox/outbox, retries and idempotent side-effect handling.
+- [x] HMAC-authenticated messages and acknowledgements, durable SQLite WAL inbox/outbox, retry backoff, deduplication, and at-least-once handler processing.
 - [ ] Partition ownership, membership epochs, concurrent state conflict policy and distributed fault injection.
 - [ ] Multi-node independent implementation and network-partition testing.
 
 ## Milestone 5 — integrated hybrid, uncertainty and worker execution
 - [x] Couple RK4 integration to the event engine's next discrete boundary.
-- [x] Localize sign-changing continuous roots by bisection and enqueue exact root metadata on the discrete event axis.
+- [x] Localize sign-changing continuous roots by bisection and enqueue root metadata on the discrete event axis.
 - [x] Add explicit upper-bound conservative uncertain-time scheduling and seeded independent-uniform Monte Carlo order estimates.
 - [x] Add symbolic predicate expressions, bounded invariant checking and trace-label partial-order canonicalization.
 - [x] Add HMAC-authenticated worker messages, SQLite WAL inbox/outbox, idempotent receipt, retry backoff and at-least-once handler processing.
 - [x] Add subprocess termination testing between checkpoint generation and commit-pointer updates.
-- [x] Expand CI across Linux, macOS and Windows hosted runners and publish benchmark reproduction artifacts from each OS.
+- [x] Expand CI across Linux, macOS and Windows hosted runners and publish benchmark reproduction artifacts from each OS (Python 3.12 matrix).
 
 ## Verification boundaries
-The RK4 implementation is explicit and testable, but not suitable for stiff systems and not independently certified. Adaptive step-doubling estimates local truncation error; it is not a rigorous global error bound. Hybrid coupling now stops at the next discrete boundary and localizes sign-changing roots by bisection; tangential root detection, dense output and certified solvers remain unimplemented.
+
+The RK4 implementation is explicit and testable, but not suitable for stiff systems and not independently certified. Adaptive step-doubling estimates local truncation error; it is not a rigorous global error bound. Hybrid coupling stops at the next discrete boundary and localizes sign-changing roots by bisection; tangential root detection, dense output and certified solvers remain unimplemented.
 
 Interval ordering expresses only what is guaranteed by closed intervals. Overlap does not imply simultaneity. Enumerated linear extensions are not probabilities; the separate Monte Carlo estimator assumes independent uniform timing errors. Bounded model checking has state, depth and path budgets; results apply only to the supplied transition relation and finite bounds.
 
-CheckpointStore is a single-writer local-filesystem protocol. Unit corruption tests do not prove power-loss durability across filesystems. Distributed causal reconciliation and authenticated worker transport are implemented, but the system is not consensus, exactly-once side effects or a production fault-tolerant cluster. Statistical bootstrap intervals do not eliminate systematic benchmark bias. Independent multi-machine reproduction remains a required research activity.
+CheckpointStore is a single-writer local-filesystem protocol. Unit corruption tests and process-termination tests do not prove power-loss durability across filesystems. Distributed causal reconciliation and authenticated worker transport are implemented, but the system is not consensus, exactly-once side effects or a production fault-tolerant cluster. Worker delivery is at-least-once; handlers must be idempotent. HMAC authenticates but does not encrypt unless TLS is configured. Partition ownership, membership epochs, leader election, and multi-node independent validation remain future work. Statistical bootstrap intervals do not eliminate systematic benchmark bias. Hosted-runner benchmark artifacts are reproducibility evidence, not independent third-party laboratory validation or universal performance claims.
 
 Relativistic time dilation, quantum temporal models, closed timelike curves and other speculative physical ideas are not implemented. Physical predictions require explicit equations, units, assumptions, provenance and comparison with established reference results.
-
-
-The integrated hybrid API currently uses integer discrete ticks and real-valued continuous coordinates. A localized root is rounded upward to the next integer tick while its exact time/state remain in the payload. Sign-change detection does not detect tangential roots. Uncertain scheduler execution uses an explicit latest-bound policy; probability propagation assumes independent uniform draws and is not Bayesian inference. Symbolic predicates are evaluated over explicit finite states, not a BDD/SAT solver; partial-order trace canonicalization is only sound when the caller's independence relation is valid. Worker delivery is authenticated with HMAC but is not encrypted unless TLS is configured; inbox handlers are at-least-once and must be idempotent. Hosted CI runs are independent runner VMs, not independent third-party laboratories or filesystems.
