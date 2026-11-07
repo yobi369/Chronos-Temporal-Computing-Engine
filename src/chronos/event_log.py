@@ -151,8 +151,8 @@ def _validate_json_value(value: Any, path: str = "$") -> None:
 
 def _canonical_json(value: Any) -> str:
     """Encode Chronos canonical JSON: UTF-8 text, sorted keys, compact separators, finite values."""
-    _validate_json_value(value)
     try:
+        _validate_json_value(value)
         return json.dumps(
             value,
             ensure_ascii=False,
@@ -160,6 +160,8 @@ def _canonical_json(value: Any) -> str:
             sort_keys=True,
             separators=(",", ":"),
         )
+    except RecursionError as exc:
+        raise EventLogError("value exceeds the supported JSON nesting depth") from exc
     except (TypeError, ValueError) as exc:
         raise EventLogError(f"value is not canonical JSON data: {exc}") from exc
 
@@ -420,6 +422,8 @@ def event_log_from_json(source: str) -> EventLog:
             object_pairs_hook=_reject_duplicate_keys,
             parse_constant=_reject_constant,
         )
+    except RecursionError as exc:
+        raise EventLogError("event-log JSON exceeds the supported nesting depth") from exc
     except json.JSONDecodeError as exc:
         raise EventLogError(f"invalid event-log JSON: {exc}") from exc
     if not isinstance(document, dict):
