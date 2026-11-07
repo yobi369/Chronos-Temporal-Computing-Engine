@@ -1,17 +1,21 @@
 name: CI
 on:
   push:
-    branches: [main, 'feature/**', 'research/**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: chronos-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ['3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@v4
@@ -26,3 +30,15 @@ jobs:
         run: mypy src
       - name: Test
         run: pytest --cov=chronos --cov-report=term-missing --cov-fail-under=70
+      - name: Benchmark smoke test
+        run: python benchmarks/run_benchmarks.py --events 100 --warmups 0 --repeats 3 --output "${{ runner.temp }}/chronos-benchmark.json"
+      - name: Independent hosted-runner benchmark reproduction
+        if: matrix.python-version == '3.12'
+        run: python benchmarks/reproduce_matrix.py
+      - name: Upload benchmark reproduction
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: chronos-benchmark-${{ matrix.os }}
+          path: benchmark-results/reproduction.json
+          if-no-files-found: error

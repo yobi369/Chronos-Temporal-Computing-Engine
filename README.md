@@ -1,52 +1,42 @@
-# Chronos — Temporal Computing Engine
+# Chronos Temporal Computing Engine
 
-Chronos is an experimental, deterministic temporal-computing laboratory for event-driven systems, causal ordering, branching histories, counterfactual simulation, and reproducible experiments.
+Chronos is an early-stage research software project for deterministic discrete-event simulation, causal event provenance, and branching logical timelines.
 
-The project treats speculative temporal ideas as computational models, not claims that physical time can be manipulated.
+## Implemented capabilities
 
-## Current status
+- Deterministic discrete-event scheduling with stable time/sequence ordering.
+- Event identity, logical time, causal-parent references, Lamport/vector clocks and causal graph.
+- In-process snapshots and isolated timeline forks.
+- Versioned snapshot JSON (v2) with documented in-memory migration from legacy v1.
+- Canonical event-log JSON, bounded local persistence, deterministic replay and final-state digest comparison.
+- Hypothesis property tests and differential checks against a separate sorted-list reference scheduler.
+- Finite-trace temporal operators and bounded explicit-state model checking.
+- Reproducible experiment manifests and paired benchmark harness with cross-platform runner artifacts.
+- Hybrid discrete/continuous RK4 integration with event-boundary stopping and bisection root localization.
+- Conservative interval-time scheduling and seeded Monte Carlo event-order propagation.
+- Symbolic state predicates and bounded invariant checking.
+- HMAC-authenticated distributed worker messaging with durable SQLite inbox/outbox, retries and deduplication.
+- Process-termination checkpoint recovery tests.
 
-Early research prototype. The initial implementation provides:
+## Development
 
-- A deterministic discrete-event scheduler with stable tie-breaking.
-- Explicit event identity, logical time, and declared causal-parent references.
-- Lamport and vector clocks for logical ordering and distributed happens-before analysis.
-- A causal provenance graph with ancestor and descendant queries.
-- In-process timeline snapshots and isolated forks.
-- Event-log consistency validation.
-- Tests for ordering, causal provenance, bounded execution, and branch isolation.
+    python -m pip install -e '.[dev]'
+    ruff check .
+    mypy src
+    pytest --cov=chronos --cov-report=term-missing
 
-Not implemented: persistent replay, relativistic spacetime simulation, quantum time models, physical time travel, distributed consensus, or production persistence. These require separate mathematical specifications and validation.
+Run the benchmark:
 
-## Quick start
+    python benchmarks/run_benchmarks.py --events 10000 --warmups 2 --repeats 7
 
-Requires Python 3.11+.
+See docs/architecture.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md and docs/research-roadmap.md.
 
-    python -m pip install -e ".[dev]"
-    pytest
+## Important limitations
 
-Run the example:
+Replay requires deterministic handlers and explicitly recorded inputs. Handler rollback cannot undo external effects. Snapshots omit handlers. Digests are not signatures or tamper-proof audit evidence. Temporal evaluation uses finite-trace semantics; symbolic checking is explicit-state and bounded. Hybrid root localization detects sign changes only and rounds roots up to integer event ticks. Interval probability estimates assume independent uniform timing errors. Worker handlers are at-least-once and must be idempotent; HMAC does not encrypt traffic, so configure TLS for untrusted networks. The reference scheduler and benchmark are software baselines, not universal performance claims.
 
-    python examples/branching_timeline.py
-
-## Design principles
-
-1. Determinism: identical inputs and initial state produce identical event traces.
-2. Explicit causality: causal links are declared and validated, not inferred from wall-clock timestamps.
-3. Branch isolation: a fork explores an alternative future without mutating its parent.
-4. Reproducibility: experiments expose their inputs, event traces, and configuration.
-5. Scientific honesty: model assumptions and limits are documented; simulation output is not evidence of a physical phenomenon.
-
-## Architecture
-
-- `chronos.clock`: logical clock primitives.
-- `chronos.events`: immutable event records.
-- `chronos.engine`: deterministic discrete-event execution.
-- `chronos.timeline`: forkable in-process snapshots.
-- `chronos.validation`: event-log consistency checks.
-
-See [docs/architecture.md](docs/architecture.md), [docs/temporal-model.md](docs/temporal-model.md), and [docs/validation.md](docs/validation.md).
+Chronos does not implement physical time travel, relativistic time manipulation, quantum temporal effects, or closed timelike curves. Such claims require precise mathematical models and independent validation.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+Apache-2.0. See LICENSE.
