@@ -210,3 +210,30 @@ def test_event_log_rejects_malformed_in_memory_event_fields():
     )
     with pytest.raises(EventLogError, match="invalid fields"):
         event_log_to_json(malformed)
+
+
+def test_deeply_nested_json_is_rejected_without_leaking_recursion_error():
+    source = "[" * 1500 + "0" + "]" * 1500
+    with pytest.raises(EventLogError):
+        event_log_from_json(source)
+
+    nested = {}
+    cursor = nested
+    for _ in range(1500):
+        child = {}
+        cursor["child"] = child
+        cursor = child
+    with pytest.raises(EventLogError, match="nesting depth"):
+        state_digest(nested)
+
+
+def test_persisted_event_log_rejects_invalid_utf8_and_truncated_json(tmp_path):
+    invalid_utf8 = tmp_path / "invalid-utf8.json"
+    invalid_utf8.write_bytes(b"\\xff")
+    with pytest.raises(EventLogError, match="UTF-8"):
+        read_event_log(invalid_utf8)
+
+    truncated = tmp_path / "truncated.json"
+    truncated.write_text('{"schema_version":', encoding="utf-8")
+    with pytest.raises(EventLogError, match="invalid event-log JSON"):
+        read_event_log(truncated)
