@@ -229,7 +229,7 @@ def test_deeply_nested_json_is_rejected_without_leaking_recursion_error():
 
 def test_persisted_event_log_rejects_invalid_utf8_and_truncated_json(tmp_path):
     invalid_utf8 = tmp_path / "invalid-utf8.json"
-    invalid_utf8.write_bytes(b"\\xff")
+    invalid_utf8.write_bytes(bytes([0xFF]))
     with pytest.raises(EventLogError, match="UTF-8"):
         read_event_log(invalid_utf8)
 
