@@ -11,6 +11,7 @@ def accumulate(event, simulation):
 
 def test_event_log_replays_in_fresh_python_process(tmp_path):
     engine = SimulationEngine("fresh-process-replay")
+    engine.state = {"total": 7}
     engine.register("accumulate", accumulate)
     inputs = (
         EventInput(1, "accumulate", {"delta": 4}),
@@ -22,6 +23,7 @@ def test_event_log_replays_in_fresh_python_process(tmp_path):
     engine.run()
 
     log = EventLog.capture(engine, inputs)
+    assert log.initial_state == {"total": 7}
     path = tmp_path / "portable-history.json"
     path.write_text(event_log_to_json(log), encoding="utf-8")
 
