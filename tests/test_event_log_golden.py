@@ -14,11 +14,11 @@ def test_golden_canonical_event_log_serialization():
     expected = (
         '{"events":[],"final_state_digest":"'
         + empty_state_digest
-        + '","initial_events":[],"payload_schemas":{},'
-        '"schema_version":2,"timeline_id":"golden"}'
+        + '","initial_events":[],"initial_state":{},"payload_schemas":{},'
+        '"schema_version":3,"timeline_id":"golden"}'
     )
     assert event_log_to_json(log) == expected
-    assert json.loads(expected)["schema_version"] == 2
+    assert json.loads(expected)["schema_version"] == 3
 
 
 def test_golden_state_digest_fixture_is_stable():
