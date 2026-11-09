@@ -3,7 +3,6 @@ import json
 import pytest
 
 from chronos.engine import SimulationEngine
-from chronos.event_log_migration import migrate_event_log_v2_to_v3
 from chronos.event_log import (
     EventInput,
     EventLog,
@@ -17,6 +16,7 @@ from chronos.event_log import (
     state_digest,
     write_event_log,
 )
+from chronos.event_log_migration import migrate_event_log_v2_to_v3
 
 
 def build_run():
