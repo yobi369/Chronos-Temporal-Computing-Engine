@@ -1,12 +1,13 @@
 # Event logs and deterministic replay
 
-Chronos event-log schema version 2 stores three related records:
+Chronos event-log schema version 3 stores four related records:
 
-1. **Initial inputs** — events submitted by the experiment driver before execution.
-2. **Observed history** — every event successfully executed, including events scheduled by handlers.
-3. **Payload contracts** — optional per-event-type object schemas that describe required and optional fields.
+1. **Initial state** — the JSON object present immediately before the first event is dispatched.
+2. **Initial inputs** — events submitted by the experiment driver before execution.
+3. **Observed history** — every event successfully executed, including events scheduled by handlers.
+4. **Payload contracts** — optional per-event-type object schemas that describe required and optional fields.
 
-Schema version 1 remains readable and writable for existing logs. New captures use version 2. Version 1 has the same input/history structure but no embedded payload contracts. Unknown or missing fields are rejected within each supported version; a future incompatible format requires an explicit version and migration.
+Schemas 1 and 2 remain readable and writable. Version 1 has no embedded payload contracts; version 2 adds payload contracts but does not record initial state. New captures use version 3. Legacy v1/v2 logs replay from an empty initial state, preserving their historical format semantics. If an older experiment began with non-empty state, replay requires an explicit v2-to-v3 migration with the original starting state; that information cannot be inferred from the final digest or event history. Unknown or missing fields are rejected within each supported version.
 
 This distinction between inputs and observations matters. Replaying every observed event as an initial input would duplicate handler-generated events. Replay therefore schedules only the recorded initial inputs, runs the registered handlers, and compares the resulting event history and final-state digest with the recorded observations.
 
@@ -25,7 +26,7 @@ The final-state digest is SHA-256 over the canonical JSON representation of the 
 
 ## Payload contracts
 
-A `PayloadSchema` may be registered for each event type when capturing a log:
+Payload contracts were introduced in schema version 2 and are retained in v3. A `PayloadSchema` may be registered for each event type when capturing a log:
 
     from chronos import EventInput, EventLog, PayloadSchema
 
@@ -55,6 +56,7 @@ The schema registry is part of version-2 event-log data, so the contract travels
         )
 
     engine.register("record", record)
+    engine.state["starting_count"] = 10
     inputs = (EventInput(5, "record", {"count": 2}),)
     for item in inputs:
         engine.schedule(item.time, item.event_type, item.payload)
@@ -73,11 +75,13 @@ The schema registry is part of version-2 event-log data, so the contract travels
     replayed = replay_event_log(log, {"record": record})
     assert replayed.state == engine.state
 
+Schema v3 captures the engine state immediately before its first dispatched event. If no event is dispatched, capture uses the engine's current state. State changes made by handlers are replayed normally; external mutations after the first dispatch are not represented and must instead be modeled as events or otherwise controlled by the experiment. Replaying v1/v2 logs starts from an empty state because those formats did not record an initial state.
+
 Handlers must be deterministic with respect to recorded inputs and explicitly controlled state. Hidden dependencies such as wall-clock time, network responses, random values, environment variables, mutable global state, or external files must be captured as inputs or controlled by the experiment. The replay API executes Python handlers; it is not a sandbox for untrusted code.
 
 ## Reproducibility checks
 
-The test suite includes randomized input histories, a 4,096-event persisted replay, and a fresh-interpreter subprocess test. The subprocess test reads the serialized log in a separate Python process, re-registers the deterministic handler, replays only recorded initial inputs, and compares the resulting state digest and history length with the captured run. CI exercises this check across the configured operating systems and Python versions; it is evidence for those tested environments, not a guarantee across every Python implementation or runtime version.
+The test suite includes randomized input histories, a 4,096-event persisted replay, non-empty initial-state replay, v1/v2 compatibility and explicit v2-to-v3 migration, and a fresh-interpreter subprocess test. The subprocess test reads the serialized log in a separate Python process, re-registers the deterministic handler, restores the recorded initial state, replays only recorded initial inputs, and compares the resulting state digest and history length with the captured run. CI exercises these checks across the configured operating systems and Python versions; this is evidence for those tested environments, not a guarantee across every Python implementation or runtime version.
 
 ## Persistence limits
 
