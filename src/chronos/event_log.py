@@ -1,6 +1,7 @@
 """Canonical event-log serialization, persistence, and deterministic replay."""
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
@@ -16,9 +17,12 @@ from chronos.engine import SimulationEngine
 from chronos.events import Event
 from chronos.validation import validate_event_log
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 LEGACY_SCHEMA_VERSION = 1
-SUPPORTED_SCHEMA_VERSIONS = frozenset({LEGACY_SCHEMA_VERSION, SCHEMA_VERSION})
+PAYLOAD_SCHEMA_VERSION = 2
+SUPPORTED_SCHEMA_VERSIONS = frozenset(
+    {LEGACY_SCHEMA_VERSION, PAYLOAD_SCHEMA_VERSION, SCHEMA_VERSION}
+)
 DEFAULT_MAX_LOG_BYTES = 16 * 1024 * 1024
 PAYLOAD_TYPES = frozenset({"array", "boolean", "integer", "null", "number", "object", "string"})
 
@@ -94,12 +98,15 @@ class EventLog:
     final_state_digest: str
     schema_version: int = SCHEMA_VERSION
     payload_schemas: Mapping[str, PayloadSchema] = field(default_factory=dict)
+    initial_state: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if isinstance(self.payload_schemas, Mapping):
             object.__setattr__(
                 self, "payload_schemas", MappingProxyType(dict(self.payload_schemas))
             )
+        if isinstance(self.initial_state, dict):
+            object.__setattr__(self, "initial_state", copy.deepcopy(self.initial_state))
 
     @classmethod
     def capture(
@@ -116,6 +123,7 @@ class EventLog:
             events=engine.history,
             final_state_digest=state_digest(engine.state),
             payload_schemas=dict(payload_schemas or {}),
+            initial_state=engine.initial_state,
         )
 
 
@@ -253,6 +261,15 @@ def _validate_log(log: EventLog) -> None:
         raise EventLogError(f"unsupported event-log schema version: {log.schema_version}")
     if not isinstance(log.timeline_id, str) or not log.timeline_id:
         raise EventLogError("timeline_id must be a non-empty string")
+    if not isinstance(log.initial_state, dict) or any(
+        not isinstance(key, str) for key in log.initial_state
+    ):
+        raise EventLogError("initial_state must be a JSON object with string keys")
+    _canonical_json(log.initial_state)
+    if log.schema_version < SCHEMA_VERSION and log.initial_state:
+        raise EventLogError(
+            f"schema version {log.schema_version} cannot contain an initial state"
+        )
     digest = log.final_state_digest
     if (
         not isinstance(digest, str)
@@ -303,8 +320,10 @@ def _validate_log(log: EventLog) -> None:
             )
         except ValueError as exc:
             raise EventLogError(str(exc)) from exc
-    if log.schema_version == LEGACY_SCHEMA_VERSION and log.payload_schemas:
-        raise EventLogError("schema version 1 cannot contain payload schemas")
+    if log.schema_version < PAYLOAD_SCHEMA_VERSION and log.payload_schemas:
+        raise EventLogError(
+            f"schema version {log.schema_version} cannot contain payload schemas"
+        )
     for index, item in enumerate(log.initial_events):
         _validate_payload(
             item.event_type, item.payload, log.payload_schemas, f"initial_events[{index}]"
@@ -325,11 +344,13 @@ def event_log_to_json(log: EventLog) -> str:
         "events": [_event_to_dict(item) for item in log.events],
         "final_state_digest": log.final_state_digest,
     }
-    if log.schema_version == SCHEMA_VERSION:
+    if log.schema_version >= PAYLOAD_SCHEMA_VERSION:
         document["payload_schemas"] = {
             event_type: _payload_schema_to_dict(schema)
             for event_type, schema in sorted(log.payload_schemas.items())
         }
+    if log.schema_version == SCHEMA_VERSION:
+        document["initial_state"] = log.initial_state
     return _canonical_json(document)
 
 
@@ -415,7 +436,7 @@ def _parse_payload_schemas(value: Any) -> dict[str, PayloadSchema]:
 
 
 def event_log_from_json(source: str) -> EventLog:
-    """Parse and strictly validate event-log schema versions 1 and 2."""
+    """Parse and strictly validate event-log schema versions 1, 2, and 3."""
     try:
         document = json.loads(
             source,
@@ -438,8 +459,10 @@ def event_log_from_json(source: str) -> EventLog:
         "events",
         "final_state_digest",
     }
-    if version == SCHEMA_VERSION:
+    if version >= PAYLOAD_SCHEMA_VERSION:
         expected_keys.add("payload_schemas")
+    if version == SCHEMA_VERSION:
+        expected_keys.add("initial_state")
     document = _require_object(document, expected_keys, "event log")
 
     timeline_id = document["timeline_id"]
@@ -459,6 +482,11 @@ def event_log_from_json(source: str) -> EventLog:
         raise EventLogError("initial_events and events must be arrays")
     schemas = (
         _parse_payload_schemas(document["payload_schemas"])
+        if version >= PAYLOAD_SCHEMA_VERSION
+        else {}
+    )
+    initial_state = (
+        _require_payload(document["initial_state"], "initial_state")
         if version == SCHEMA_VERSION
         else {}
     )
@@ -523,7 +551,9 @@ def event_log_from_json(source: str) -> EventLog:
         except ValueError as exc:
             raise EventLogError(str(exc)) from exc
 
-    log = EventLog(timeline_id, tuple(inputs), tuple(events), digest, version, schemas)
+    log = EventLog(
+        timeline_id, tuple(inputs), tuple(events), digest, version, schemas, initial_state
+    )
     _validate_log(log)
     return log
 
@@ -576,6 +606,7 @@ def replay_event_log(
     if len(log.events) > max_events:
         raise EventLogError("recorded history exceeds the replay event limit")
     engine = SimulationEngine(log.timeline_id)
+    engine.state = copy.deepcopy(log.initial_state)
     for event_type, handler in handlers.items():
         engine.register(event_type, handler)
     for item in log.initial_events:
