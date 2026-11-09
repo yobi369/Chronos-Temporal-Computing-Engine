@@ -7,7 +7,10 @@ from chronos.engine import SimulationEngine
 from chronos.event_log import (EventInput, EventLog, EventLogError, PayloadSchema, ReplayMismatchError,
     event_log_from_json, event_log_to_json, read_event_log, replay_event_log,
     state_digest, write_event_log)
-from chronos.event_log_migration import migrate_event_log_v1_to_v2
+from chronos.event_log_migration import (
+    migrate_event_log_v1_to_v2,
+    migrate_event_log_v2_to_v3,
+)
 from chronos.events import Event
 from chronos.experiments import ExperimentManifest, manifest_from_json
 from chronos.hybrid import (HybridIntegrationResult, IntegrationResult, RootEvent, integrate_adaptive_rk4, integrate_rk4, integrate_to_root, rk4_step)
@@ -31,7 +34,7 @@ __all__ = [
     "Next", "Not", "OrderProbability", "Or", "ProbabilityEstimate", "Release", "RootEvent", "ReplayMismatchError", "SNAPSHOT_SCHEMA_VERSION",
     "SimulationEngine", "SymbolicCheckResult", "SymbolicLimitError", "TimeInterval", "Timeline", "Until", "VectorClock",
     "WorkerClient", "WorkerProtocolError", "WorkerServer", "canonical_independent_trace", "integrate_to_root", "propagate_order_probabilities", "sign_message", "symbolic_bounded_check", "verify_message", "bounded_model_check", "evaluate", "event_log_from_json", "event_log_to_json",
-    "integrate_adaptive_rk4", "integrate_rk4", "manifest_from_json", "migrate_v1_to_v2", "migrate_event_log_v1_to_v2",
+    "integrate_adaptive_rk4", "integrate_rk4", "manifest_from_json", "migrate_v1_to_v2", "migrate_event_log_v1_to_v2", "migrate_event_log_v2_to_v3",
     "must_precede", "possible_orders", "read_event_log", "reconcile_events",
     "replay_event_log", "rk4_step", "snapshot_from_json", "snapshot_to_json",
     "state_digest", "validate_event_log", "write_event_log",
