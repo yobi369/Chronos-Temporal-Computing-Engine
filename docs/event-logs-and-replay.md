@@ -39,7 +39,7 @@ Payload contracts were introduced in schema version 2 and are retained in v3. A 
 
 Supported property types are `null`, `boolean`, `integer`, `number`, `string`, `array`, and `object`. Boolean values are not accepted as integers or numbers. Additional properties are rejected by default; set `allow_additional_properties=True` only when the event contract intentionally permits them. When a non-empty schema registry is supplied, every initial and executed event type must have a schema, and both inputs and observed payloads are validated during serialization, parsing, and replay.
 
-The schema registry is part of version-2 event-log data, so the contract travels with the recorded inputs. The schemas are deliberately a small object-validation subset, not a complete JSON Schema implementation.
+The schema registry is part of version-2 and version-3 event-log data, so the contract travels with the recorded inputs. The schemas are deliberately a small object-validation subset, not a complete JSON Schema implementation.
 
 ## Capture and replay
 
