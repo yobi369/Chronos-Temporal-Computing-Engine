@@ -36,6 +36,7 @@ def legacy_log():
     document = json.loads(event_log_to_json(current))
     document["schema_version"] = 1
     document.pop("payload_schemas")
+    document.pop("initial_state")
     return event_log_from_json(json.dumps(document))
 
 
