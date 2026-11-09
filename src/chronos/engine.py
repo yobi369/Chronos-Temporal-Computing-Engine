@@ -40,6 +40,12 @@ class SimulationEngine:
         self._handlers: dict[str, EventHandler] = {}
         self._clock = LogicalClock()
         self._current_event: Event | None = None
+        self._initial_state: dict[str, Any] | None = None
+
+    @property
+    def initial_state(self) -> dict[str, Any]:
+        """Return the state immediately before the first dispatched event."""
+        return copy.deepcopy(self.state if self._initial_state is None else self._initial_state)
 
     @property
     def history(self) -> tuple[Event, ...]:
@@ -121,6 +127,8 @@ class SimulationEngine:
 
     def step(self) -> Event | None:
         if not self._queue: return None
+        if self._initial_state is None:
+            self._initial_state = copy.deepcopy(self.state)
         state_before=copy.deepcopy(self.state); queue_before=copy.deepcopy(self._queue)
         next_sequence_before=self._next_sequence; clock_before=self._clock.value; time_before=self.current_time
         _,_,event=heapq.heappop(self._queue); self.current_time=event.time; self._current_event=event
