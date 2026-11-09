@@ -3,6 +3,7 @@ import json
 import pytest
 
 from chronos.engine import SimulationEngine
+from chronos.event_log_migration import migrate_event_log_v2_to_v3
 from chronos.event_log import (
     EventInput,
     EventLog,
@@ -77,10 +78,10 @@ def test_replay_detects_state_tampering():
 def test_unsupported_version_and_unknown_fields_are_rejected():
     engine, inputs = build_run()
     document = json.loads(event_log_to_json(EventLog.capture(engine, inputs)))
-    document["schema_version"] = 3
+    document["schema_version"] = 4
     with pytest.raises(EventLogError, match="unsupported"):
         event_log_from_json(json.dumps(document))
-    document["schema_version"] = 2
+    document["schema_version"] = 3
     document["unexpected"] = True
     with pytest.raises(EventLogError, match="exactly"):
         event_log_from_json(json.dumps(document))
@@ -119,7 +120,7 @@ def test_payload_schemas_are_versioned_and_enforced_during_replay():
     log = EventLog.capture(engine, inputs, payload_schemas=schemas)
     encoded = event_log_to_json(log)
     parsed = event_log_from_json(encoded)
-    assert parsed.schema_version == 2
+    assert parsed.schema_version == 3
     assert parsed.payload_schemas == schemas
     assert replay_event_log(parsed, handlers()).state == engine.state
 
@@ -156,6 +157,7 @@ def test_schema_v1_logs_remain_readable_and_round_trip_without_schema_metadata()
     document = json.loads(event_log_to_json(EventLog.capture(engine, inputs)))
     document["schema_version"] = 1
     document.pop("payload_schemas")
+    document.pop("initial_state")
     legacy = event_log_from_json(json.dumps(document))
     assert legacy.schema_version == 1
     assert legacy.payload_schemas == {}
@@ -237,3 +239,86 @@ def test_persisted_event_log_rejects_invalid_utf8_and_truncated_json(tmp_path):
     truncated.write_text('{"schema_version":', encoding="utf-8")
     with pytest.raises(EventLogError, match="invalid event-log JSON"):
         read_event_log(truncated)
+
+
+
+def test_schema_v2_logs_remain_readable_and_round_trip_without_initial_state():
+    engine, inputs = build_run()
+    document = json.loads(event_log_to_json(EventLog.capture(engine, inputs)))
+    document["schema_version"] = 2
+    document.pop("initial_state")
+    legacy = event_log_from_json(json.dumps(document))
+
+    assert legacy.schema_version == 2
+    assert legacy.initial_state == {}
+    assert event_log_from_json(event_log_to_json(legacy)) == legacy
+
+
+def test_schema_v3_captures_non_empty_initial_state_and_replays():
+    engine = SimulationEngine("initial-state-replay")
+    engine.state = {"balance": 10}
+
+    def credit(event, simulation):
+        simulation.state["balance"] += event.payload["amount"]
+
+    engine.register("credit", credit)
+    inputs = (EventInput(4, "credit", {"amount": 5}),)
+    for item in inputs:
+        engine.schedule(item.time, item.event_type, item.payload)
+    engine.run()
+
+    log = EventLog.capture(engine, inputs)
+    encoded = event_log_to_json(log)
+    parsed = event_log_from_json(encoded)
+    replayed = replay_event_log(parsed, {"credit": credit})
+
+    assert parsed.schema_version == 3
+    assert parsed.initial_state == {"balance": 10}
+    assert replayed.state == {"balance": 15}
+    assert replayed.state == engine.state
+
+
+def test_schema_v2_migration_requires_and_preserves_supplied_initial_state():
+    engine = SimulationEngine("v2-migration")
+    engine.state = {"balance": 10}
+
+    def credit(event, simulation):
+        simulation.state["balance"] += event.payload["amount"]
+
+    engine.register("credit", credit)
+    inputs = (EventInput(2, "credit", {"amount": 7}),)
+    for item in inputs:
+        engine.schedule(item.time, item.event_type, item.payload)
+    engine.run()
+    captured = EventLog.capture(engine, inputs)
+
+    legacy = EventLog(
+        timeline_id=captured.timeline_id,
+        initial_events=captured.initial_events,
+        events=captured.events,
+        final_state_digest=captured.final_state_digest,
+        schema_version=2,
+        payload_schemas=captured.payload_schemas,
+    )
+    migrated = migrate_event_log_v2_to_v3(
+        legacy, initial_state={"balance": 10}
+    )
+
+    assert migrated.schema_version == 3
+    assert migrated.initial_state == {"balance": 10}
+    assert event_log_from_json(event_log_to_json(migrated)) == migrated
+    assert replay_event_log(migrated, {"credit": credit}).state == engine.state
+
+
+def test_schema_v3_rejects_non_json_initial_state():
+    engine, inputs = build_run()
+    captured = EventLog.capture(engine, inputs)
+    invalid = EventLog(
+        timeline_id=captured.timeline_id,
+        initial_events=captured.initial_events,
+        events=captured.events,
+        final_state_digest=captured.final_state_digest,
+        initial_state={"unsupported": object()},
+    )
+    with pytest.raises(EventLogError, match="canonical JSON"):
+        event_log_to_json(invalid)
