@@ -1,5 +1,3 @@
-import json
-
 from chronos.event_log import (
     EventLog,
     PayloadSchema,
