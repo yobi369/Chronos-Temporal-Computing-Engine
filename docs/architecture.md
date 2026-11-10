@@ -24,7 +24,9 @@ Each event step snapshots engine-managed state, the pending queue, sequence coun
 
 ## Event logs and replay
 
-Event-log schema v2 separates experiment-driver initial inputs from the complete observed execution history and can carry payload field contracts. Schema v1 remains readable and has an explicit migration helper. Replay schedules only recorded initial inputs, executes registered deterministic handlers, and compares the generated history and canonical final-state digest. The format uses documented canonical JSON rules, bounded local reads, and atomic file replacement. The digest is a reproducibility checksum, not a signature or tamper-proof audit record. See the event-log guide and migration guide for details.
+Event-log schema v3 records the engine state immediately before the first dispatched event, experiment-driver initial inputs, the complete observed execution history, and optional payload field contracts. Strict schema-v1 and schema-v2 readers and writers remain supported: v1 has no payload contracts or initial state; v2 adds payload contracts but no initial state; v3 adds initial state. The v1-to-v2 and v2-to-v3 upgrades are explicit migrations. The v2-to-v3 migration requires the caller to supply the original pre-dispatch state because it cannot be inferred from historical events or the final digest.
+
+Replay schedules only recorded initial inputs, restores the recorded initial state, executes registered deterministic handlers, and compares generated history and the canonical final-state digest. Canonical serialization rejects unsupported Python values, duplicate JSON keys, non-finite numbers, and unknown schema fields. Persistence uses bounded local reads and temporary-file writes followed by fsync and atomic replacement. The digest is a reproducibility checksum, not a signature or tamper-proof audit record. See the event-log guide and migration guide for details.
 
 ## Distributed workers
 
