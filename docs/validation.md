@@ -7,8 +7,8 @@ Chronos is an early-stage research prototype. Current validation targets softwar
 The automated suite includes:
 - stable scheduler ordering, rejection of past scheduling, causal-parent identity, unique event IDs and sequence numbers;
 - isolated timeline forks and snapshot serialization, strict parsing, and legacy v1-to-v2 migration;
-- canonical event-log round trips, payload-contract validation, bounded local persistence, atomic-replacement failure behavior, and schema migration;
-- deterministic replay of explicit initial inputs, observed-history comparison, final-state digest comparison, randomized replay properties, and longer-history reproducibility;
+- canonical event-log round trips with exact golden serialization fixtures for schemas v1, v2 and v3; payload-contract validation; bounded local persistence; atomic-replacement failure behavior; strict malformed-file rejection; and explicit v1-to-v2 and v2-to-v3 migration;
+- deterministic replay from schema-v3 initial state and explicit inputs, observed-history comparison, final-state digest comparison, randomized replay properties, longer-history reproducibility, and a fresh-interpreter subprocess replay;
 - property-based scheduler checks and differential comparison with a separate sorted-list reference scheduler;
 - causal graph and vector-clock behavior;
 - finite-trace temporal operators, bounded symbolic checks, uncertain-time scheduling, hybrid integration and worker protocol behavior;
@@ -28,7 +28,7 @@ The GitHub Actions workflow runs the lint, type-check, coverage-enforced test su
 
 ## Remaining validation work
 
-Further work includes broader cross-version serialized-fixture guarantees, multi-node independent implementations, membership and partition fault injection, additional numerical reference comparisons, and independent reproduction outside hosted CI. Checkpoint process-termination tests do not prove behavior under physical power loss, controller cache loss, or every filesystem and mount configuration.
+Further work includes broader cross-version serialized-fixture guarantees across additional Python implementations, multi-node independent implementations, membership and partition fault injection, additional numerical reference comparisons, and independent reproduction outside hosted CI. Checkpoint process-termination tests do not prove behavior under physical power loss, controller cache loss, or every filesystem and mount configuration.
 
 Replay assumes deterministic registered handlers and explicit initial inputs. It cannot make hidden network, clock, random, filesystem, environment, or global-state dependencies reproducible unless those dependencies are captured or controlled.
 
