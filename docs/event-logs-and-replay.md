@@ -81,7 +81,7 @@ Handlers must be deterministic with respect to recorded inputs and explicitly co
 
 ## Reproducibility checks
 
-The test suite includes randomized input histories, a 4,096-event persisted replay, non-empty initial-state replay, v1/v2 compatibility and explicit v2-to-v3 migration, and a fresh-interpreter subprocess test. The subprocess test reads the serialized log in a separate Python process, re-registers the deterministic handler, restores the recorded initial state, replays only recorded initial inputs, and compares the resulting state digest and history length with the captured run. CI exercises these checks across the configured operating systems and Python versions; this is evidence for those tested environments, not a guarantee across every Python implementation or runtime version.
+The test suite includes exact canonical serialization fixtures for schema v1 (without payload contracts or initial state), v2 (with payload contracts but without initial state), and v3 (with both); randomized input histories; a 4,096-event persisted replay; non-empty initial-state replay; v1/v2 compatibility and explicit v1-to-v2 and v2-to-v3 migrations; and a fresh-interpreter subprocess test. The subprocess test reads the serialized log in a separate Python process, re-registers the deterministic handler, restores the recorded initial state, replays only recorded initial inputs, and compares the resulting state digest and history length with the captured run. CI exercises these checks across the configured operating systems and Python versions; this is evidence for those tested environments, not a guarantee across every Python implementation or runtime version.
 
 ## Persistence limits
 
