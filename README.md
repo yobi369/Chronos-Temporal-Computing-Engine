@@ -5,10 +5,13 @@ Chronos is an early-stage research software project for deterministic discrete-e
 ## Implemented capabilities
 
 - Deterministic discrete-event scheduling with stable time/sequence ordering.
-- Event identity, logical time, causal-parent references, Lamport/vector clocks and causal graph.
+- Event identity, logical time, causal-parent references, Lamport/vector clocks and declared causal graph.
 - In-process snapshots and isolated timeline forks.
 - Versioned snapshot JSON (v2) with documented in-memory migration from legacy v1.
-- Canonical event-log JSON, bounded local persistence, deterministic replay and final-state digest comparison.
+- Canonical event-log JSON schemas v1, v2 and v3, with strict parsing and explicit version migrations.
+- Schema-v3 initial-state capture, replay from recorded driver inputs, observed-history comparison and SHA-256 final-state digest checks.
+- Bounded local event-log persistence using temporary-file writes, fsync and atomic replacement.
+- Payload field contracts, malformed-file rejection, golden serialization fixtures and fresh-process replay tests.
 - Hypothesis property tests and differential checks against a separate sorted-list reference scheduler.
 - Finite-trace temporal operators and bounded explicit-state model checking.
 - Reproducible experiment manifests and paired benchmark harness with cross-platform runner artifacts.
@@ -23,19 +26,21 @@ Chronos is an early-stage research software project for deterministic discrete-e
     python -m pip install -e '.[dev]'
     ruff check .
     mypy src
-    pytest --cov=chronos --cov-report=term-missing
+    pytest --cov=chronos --cov-report=term-missing --cov-fail-under=70
 
 Run the benchmark:
 
     python benchmarks/run_benchmarks.py --events 10000 --warmups 2 --repeats 7
 
-See docs/architecture.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md and docs/research-roadmap.md.
+See docs/architecture.md, docs/event-logs-and-replay.md, docs/event-log-migration.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md, docs/validation.md and docs/research-roadmap.md.
 
 ## Important limitations
 
-Replay requires deterministic handlers and explicitly recorded inputs. Handler rollback cannot undo external effects. Snapshots omit handlers. Digests are not signatures or tamper-proof audit evidence. Temporal evaluation uses finite-trace semantics; symbolic checking is explicit-state and bounded. Hybrid root localization detects sign changes only and rounds roots up to integer event ticks. Interval probability estimates assume independent uniform timing errors. Worker handlers are at-least-once and must be idempotent; HMAC does not encrypt traffic, so configure TLS for untrusted networks. The reference scheduler and benchmark are software baselines, not universal performance claims.
+Schema-v1 and schema-v2 event logs do not contain an initial-state record and therefore replay from an empty state. Migrating a historical non-empty run to v3 requires the exact original pre-dispatch state; Chronos cannot infer it. Replay requires deterministic handlers and explicitly recorded inputs. Hidden network, clock, random, environment, filesystem and global-state dependencies must be captured or controlled. Handler rollback cannot undo external effects, and replay is not a sandbox for untrusted handlers. Snapshots omit handlers. Digests are reproducibility checksums, not signatures or tamper-proof audit evidence. Event-log persistence is a bounded local single-writer file protocol, not a distributed event store.
 
-Chronos does not implement physical time travel, relativistic time manipulation, quantum temporal effects, or closed timelike curves. Such claims require precise mathematical models and independent validation.
+Temporal evaluation uses finite-trace semantics; symbolic checking is explicit-state and bounded. Hybrid root localization detects sign changes only and rounds roots up to integer event ticks. Interval probability estimates assume independent uniform timing errors. Worker handlers are at-least-once and must be idempotent; HMAC does not encrypt traffic, so configure TLS for untrusted networks. The reference scheduler and benchmark are software baselines, not universal performance claims.
+
+Chronos does not implement physical time travel, relativistic time manipulation, quantum temporal effects, or closed timelike curves. Such topics remain unimplemented research directions pending precise mathematical models and independent validation.
 
 ## License
 
