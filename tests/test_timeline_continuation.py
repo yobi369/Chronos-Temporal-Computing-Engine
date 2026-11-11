@@ -110,6 +110,16 @@ def test_continuation_rejects_checkpoint_and_final_state_tampering():
         replay_timeline_continuation(altered, {"add": add})
 
 
+def test_continuation_rejects_branch_inputs_that_do_not_match_history():
+    _, _, record = build_continuation()
+    altered = replace(
+        record,
+        branch_inputs=(EventInput(3, "add", {"amount": 999}),),
+    )
+    with pytest.raises(EventLogError, match="not present unchanged"):
+        timeline_continuation_to_json(altered)
+
+
 def test_incomplete_or_manually_advanced_forks_cannot_be_captured():
     parent_engine = SimulationEngine("root")
     parent_engine.state = {"total": 10}
