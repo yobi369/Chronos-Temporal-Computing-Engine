@@ -4,7 +4,7 @@ Chronos event-log schema v3 records a run that starts from an initial state and 
 
 ## Independent continuation format
 
-\`TimelineContinuation\` uses its own schema version 1. It does not change or replace event-log schemas v1–v3. A continuation record contains:
+TimelineContinuation uses its own schema version 1. It does not change or replace event-log schemas v1–v3. A continuation record contains:
 
 - the parent timeline ID and the fork's timeline ID;
 - the complete parent EngineSnapshot in the existing snapshot-v2 format;
