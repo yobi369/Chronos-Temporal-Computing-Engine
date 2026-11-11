@@ -12,6 +12,7 @@ Chronos v0.5.0 is an early-stage research software project for deterministic, si
 - Snapshot I/O: versioned JSON snapshot format (v2), with an explicit in-memory migration from legacy flat v1.
 - Timeline: named checkpoint that creates isolated branches.
 - EventLog: versioned canonical JSON record of explicit inputs, observed execution history, and optional payload contracts.
+- TimelineContinuation: independent schema-v1 record of a completed fork, its exact parent checkpoint, branch-local inputs, observed history suffix, and final digests.
 - Validation and causal analysis: consistency checks over executed event logs and queries over declared event-parent provenance.
 
 Events execute by ascending (logical_time, sequence). The sequence is assigned at scheduling time, preserving insertion order for equal timestamps. Handlers receive (event, engine), may update state, and may schedule further events. Scheduled children inherit the current event as causal parent unless explicitly overridden. Handler code is not serialized; register compatible handlers on each fork and during replay.
@@ -27,6 +28,12 @@ Each event step snapshots engine-managed state, the pending queue, sequence coun
 Event-log schema v3 records the engine state immediately before the first dispatched event, experiment-driver initial inputs, the complete observed execution history, and optional payload field contracts. Strict schema-v1 and schema-v2 readers and writers remain supported: v1 has no payload contracts or initial state; v2 adds payload contracts but no initial state; v3 adds initial state. The v1-to-v2 and v2-to-v3 upgrades are explicit migrations. The v2-to-v3 migration requires the caller to supply the original pre-dispatch state because it cannot be inferred from historical events or the final digest.
 
 Replay schedules only recorded initial inputs, restores the recorded initial state, executes registered deterministic handlers, and compares generated history and the canonical final-state digest. Canonical serialization rejects unsupported Python values, duplicate JSON keys, non-finite numbers, and unknown schema fields. Persistence uses bounded local reads and temporary-file writes followed by fsync and atomic replacement. The digest is a reproducibility checksum, not a signature or tamper-proof audit record. See the event-log guide and migration guide for details.
+
+## Fork continuation and replay
+
+Event-log schema v3 models a run from its initial state; it does not by itself model a branch that inherits a populated checkpoint, pending queue, history, and scheduler counters. TimelineContinuation schema v1 addresses this separately without changing event-log compatibility. It embeds the exact parent snapshot-v2 checkpoint, records parent history/state/checkpoint digests, stores only branch-local driver inputs and the observed history suffix, and verifies the final state and complete engine snapshot after replay.
+
+Continuation capture currently accepts completed discrete-event branches only. It rejects pending events, changed pre-dispatch state, or logical-time advancement not represented by dispatched events. Partial-run boundaries and continuous-integrator state require a future explicit continuation protocol. The continuation guide documents the format, capture boundary, and replay API.
 
 ## Distributed workers
 
