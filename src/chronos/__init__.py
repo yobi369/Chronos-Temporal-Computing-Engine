@@ -2,6 +2,16 @@
 from chronos.causality import CausalGraph
 from chronos.checkpoint import CheckpointError, CheckpointStore
 from chronos.clock import LogicalClock
+from chronos.continuation import (
+    TimelineContinuation,
+    TimelineContinuationError,
+    capture_timeline_continuation,
+    read_timeline_continuation,
+    replay_timeline_continuation,
+    timeline_continuation_from_json,
+    timeline_continuation_to_json,
+    write_timeline_continuation,
+)
 from chronos.distributed import CausalReconciliationError, DistributedEvent, reconcile_events
 from chronos.engine import SimulationEngine
 from chronos.event_log import (EventInput, EventLog, EventLogError, PayloadSchema, ReplayMismatchError,
@@ -33,6 +43,10 @@ __all__ = [
     "HybridIntegrationResult", "IntegrationResult", "Literal", "LogicalClock", "ModelCheckResult", "ModelCheckingLimitError",
     "Next", "Not", "OrderProbability", "Or", "ProbabilityEstimate", "Release", "RootEvent", "ReplayMismatchError", "SNAPSHOT_SCHEMA_VERSION",
     "SimulationEngine", "SymbolicCheckResult", "SymbolicLimitError", "TimeInterval", "Timeline", "Until", "VectorClock",
+    "TimelineContinuation", "TimelineContinuationError", "capture_timeline_continuation",
+    "read_timeline_continuation", "replay_timeline_continuation",
+    "timeline_continuation_from_json", "timeline_continuation_to_json",
+    "write_timeline_continuation",
     "WorkerClient", "WorkerProtocolError", "WorkerServer", "canonical_independent_trace", "integrate_to_root", "propagate_order_probabilities", "sign_message", "symbolic_bounded_check", "verify_message", "bounded_model_check", "evaluate", "event_log_from_json", "event_log_to_json",
     "integrate_adaptive_rk4", "integrate_rk4", "manifest_from_json", "migrate_v1_to_v2", "migrate_event_log_v1_to_v2", "migrate_event_log_v2_to_v3",
     "must_precede", "possible_orders", "read_event_log", "reconcile_events",
