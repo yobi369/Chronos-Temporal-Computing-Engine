@@ -129,6 +129,36 @@ def _validate_continuation(record: TimelineContinuation) -> None:
     if not isinstance(record.branch_inputs, tuple) or not isinstance(record.events, tuple):
         raise TimelineContinuationError("branch_inputs and events must be tuples")
 
+    known_ids = {
+        event.event_id
+        for event in (*record.checkpoint.history, *record.checkpoint.queue)
+    }
+    observed_by_id = {event.event_id: event for event in record.events}
+    next_sequence = record.checkpoint.next_sequence
+    for index, item in enumerate(record.branch_inputs):
+        if item.time < record.checkpoint.current_time:
+            raise TimelineContinuationError(
+                f"branch_inputs[{index}] schedules before the parent checkpoint time"
+            )
+        if item.parent_event_id is not None and item.parent_event_id not in known_ids:
+            raise TimelineContinuationError(
+                f"branch_inputs[{index}] references an unknown causal parent"
+            )
+        event_id = f"{record.timeline_id}:{next_sequence}"
+        observed = observed_by_id.get(event_id)
+        if observed is None or (
+            observed.sequence != next_sequence
+            or observed.time != item.time
+            or observed.event_type != item.event_type
+            or observed.payload != item.payload
+            or observed.parent_event_id != item.parent_event_id
+        ):
+            raise TimelineContinuationError(
+                f"branch input {index} is not present unchanged in the observed history"
+            )
+        known_ids.add(event_id)
+        next_sequence += 1
+
     # Reuse the event-log validator for canonical payload, ordering, identity,
     # and causal-parent checks across inherited and branch-local history.
     validation_log = EventLog(
