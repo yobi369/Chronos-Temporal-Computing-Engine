@@ -11,6 +11,7 @@ Chronos is an early-stage research software project for deterministic discrete-e
 - Canonical event-log JSON schemas v1, v2 and v3, with strict parsing and explicit version migrations.
 - Schema-v3 initial-state capture, replay from recorded driver inputs, observed-history comparison and SHA-256 final-state digest checks.
 - Bounded local event-log persistence using temporary-file writes, fsync and atomic replacement.
+- Independent schema-v1 fork continuation records with parent-checkpoint digests, branch-local inputs, persistent replay, and final snapshot verification.
 - Payload field contracts, malformed-file rejection, golden serialization fixtures and fresh-process replay tests.
 - Hypothesis property tests and differential checks against a separate sorted-list reference scheduler.
 - Finite-trace temporal operators and bounded explicit-state model checking.
@@ -32,7 +33,7 @@ Run the benchmark:
 
     python benchmarks/run_benchmarks.py --events 10000 --warmups 2 --repeats 7
 
-See docs/architecture.md, docs/event-logs-and-replay.md, docs/event-log-migration.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md, docs/validation.md and docs/research-roadmap.md.
+See docs/architecture.md, docs/event-logs-and-replay.md, docs/timeline-continuations.md, docs/event-log-migration.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md, docs/validation.md and docs/research-roadmap.md.
 
 ## Important limitations
 
