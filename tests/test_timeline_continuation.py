@@ -223,3 +223,65 @@ def test_incomplete_forks_with_manual_logical_time_advance_cannot_be_captured():
         capture_timeline_continuation(
             parent, advanced, (EventInput(2, "add", {"amount": 1}),)
         )
+
+
+def test_partial_continuation_replays_and_resumes_in_a_fresh_python_process(
+    tmp_path,
+):
+    def spawn(event, simulation):
+        simulation.state["spawned"] = True
+        simulation.schedule(event.time + 1, "add", {"amount": 7})
+
+    parent_engine = SimulationEngine("root")
+    parent_engine.state = {"total": 10}
+    parent = Timeline.capture("checkpoint", parent_engine)
+    handlers = {"add": add, "spawn": spawn}
+    branch = parent.fork("branch", handlers=handlers)
+    inputs = (EventInput(2, "spawn", {"flag": True}),)
+    branch.schedule(inputs[0].time, inputs[0].event_type, inputs[0].payload)
+    branch.run(max_events=1)
+
+    record = capture_timeline_continuation(parent, branch, inputs)
+    assert len(record.events) == 1
+    assert len(record.pending_events) == 1
+
+    path = tmp_path / "partial-fresh-process.json"
+    write_timeline_continuation(path, record)
+
+    expected = SimulationEngine.from_snapshot(branch.snapshot(), handlers)
+    expected.run()
+
+    script = r"""
+import sys
+from pathlib import Path
+from chronos import read_timeline_continuation, replay_timeline_continuation, state_digest
+
+def add(event, simulation):
+    simulation.state["total"] = simulation.state.get("total", 0) + event.payload["amount"]
+
+def spawn(event, simulation):
+    simulation.state["spawned"] = True
+    simulation.schedule(event.time + 1, "add", {"amount": 7})
+
+record = read_timeline_continuation(Path(sys.argv[1]))
+engine = replay_timeline_continuation(record, {"add": add, "spawn": spawn})
+print(state_digest(engine.state))
+print(len(engine.pending_events))
+engine.run()
+print(state_digest(engine.state))
+print(len(engine.history))
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(path)],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert completed.stdout.splitlines() == [
+        record.final_state_digest,
+        str(len(record.pending_events)),
+        state_digest(expected.state),
+        str(len(expected.history)),
+    ]
