@@ -1,4 +1,4 @@
-"""Versioned, self-contained replay records for completed timeline forks."""
+"""Versioned, self-contained replay records for timeline forks."""
 from __future__ import annotations
 
 import copy
@@ -33,7 +33,8 @@ from chronos.events import Event
 from chronos.snapshot_io import snapshot_from_json, snapshot_to_json
 from chronos.timeline import Timeline, _fork_snapshot
 
-CONTINUATION_SCHEMA_VERSION = 1
+CONTINUATION_SCHEMA_VERSION = 2
+SUPPORTED_CONTINUATION_SCHEMA_VERSIONS = frozenset({1, 2})
 DEFAULT_MAX_CONTINUATION_BYTES = DEFAULT_MAX_LOG_BYTES
 
 
@@ -43,7 +44,7 @@ class TimelineContinuationError(EventLogError):
 
 @dataclass(frozen=True, slots=True)
 class TimelineContinuation:
-    """Portable record of a completed fork from one exact parent checkpoint."""
+    """Portable record of a fork boundary from one exact parent checkpoint."""
 
     parent_timeline_id: str
     timeline_id: str
@@ -57,11 +58,13 @@ class TimelineContinuation:
     final_state_digest: str
     final_snapshot_digest: str
     schema_version: int = CONTINUATION_SCHEMA_VERSION
+    pending_events: tuple[Event, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "checkpoint", copy.deepcopy(self.checkpoint))
         object.__setattr__(self, "branch_inputs", copy.deepcopy(tuple(self.branch_inputs)))
         object.__setattr__(self, "events", copy.deepcopy(tuple(self.events)))
+        object.__setattr__(self, "pending_events", copy.deepcopy(tuple(self.pending_events)))
 
 
 def _sha256_text(value: str) -> str:
@@ -93,7 +96,10 @@ def _history_digest(events: tuple[Event, ...]) -> str:
 
 
 def _validate_continuation(record: TimelineContinuation) -> None:
-    if type(record.schema_version) is not int or record.schema_version != CONTINUATION_SCHEMA_VERSION:
+    if (
+        type(record.schema_version) is not int
+        or record.schema_version not in SUPPORTED_CONTINUATION_SCHEMA_VERSIONS
+    ):
         raise TimelineContinuationError(
             f"unsupported timeline-continuation schema version: {record.schema_version}"
         )
@@ -126,38 +132,165 @@ def _validate_continuation(record: TimelineContinuation) -> None:
         raise TimelineContinuationError("parent history digest does not match checkpoint history")
     if state_digest(record.checkpoint.state) != parent_state_digest:
         raise TimelineContinuationError("parent state digest does not match checkpoint state")
-    if not isinstance(record.branch_inputs, tuple) or not isinstance(record.events, tuple):
-        raise TimelineContinuationError("branch_inputs and events must be tuples")
+    if (
+        not isinstance(record.branch_inputs, tuple)
+        or not isinstance(record.events, tuple)
+        or not isinstance(record.pending_events, tuple)
+    ):
+        raise TimelineContinuationError(
+            "branch_inputs, events, and pending_events must be tuples"
+        )
+    if record.schema_version == 1 and record.pending_events:
+        raise TimelineContinuationError(
+            "schema-v1 continuations cannot contain pending events"
+        )
 
-    known_ids = {
-        event.event_id
-        for event in (*record.checkpoint.history, *record.checkpoint.queue)
+    checkpoint_history_ids = {event.event_id for event in record.checkpoint.history}
+    checkpoint_queue_by_id = {
+        event.event_id: event for event in record.checkpoint.queue
     }
-    observed_by_id = {event.event_id: event for event in record.events}
-    next_sequence = record.checkpoint.next_sequence
+    checkpoint_ids = checkpoint_history_ids | set(checkpoint_queue_by_id)
+    suffix_events = (*record.events, *record.pending_events)
+    suffix_by_id: dict[str, Event] = {}
+    suffix_sequences: set[int] = set()
+
+    for index, event in enumerate(suffix_events):
+        label = f"continuation event {index}"
+        if not isinstance(event, Event):
+            raise TimelineContinuationError(f"{label} must be an Event")
+        if not isinstance(event.event_id, str) or not event.event_id:
+            raise TimelineContinuationError(f"{label}.event_id must be non-empty")
+        if (
+            isinstance(event.time, bool)
+            or not isinstance(event.time, int)
+            or event.time < 0
+        ):
+            raise TimelineContinuationError(f"{label}.time must be a non-negative integer")
+        if (
+            isinstance(event.sequence, bool)
+            or not isinstance(event.sequence, int)
+            or event.sequence < 0
+        ):
+            raise TimelineContinuationError(
+                f"{label}.sequence must be a non-negative integer"
+            )
+        if not isinstance(event.event_type, str) or not event.event_type:
+            raise TimelineContinuationError(f"{label}.event_type must be non-empty")
+        if event.parent_event_id is not None and (
+            not isinstance(event.parent_event_id, str) or not event.parent_event_id
+        ):
+            raise TimelineContinuationError(
+                f"{label}.parent_event_id must be non-empty or null"
+            )
+        _require_payload(event.payload, f"{label}.payload")
+        if event.event_id in suffix_by_id:
+            raise TimelineContinuationError("continuation contains duplicate event IDs")
+        if event.sequence in suffix_sequences:
+            raise TimelineContinuationError("continuation contains duplicate event sequences")
+        suffix_by_id[event.event_id] = event
+        suffix_sequences.add(event.sequence)
+
+    if record.pending_events != tuple(
+        sorted(record.pending_events, key=lambda event: (event.time, event.sequence))
+    ):
+        raise TimelineContinuationError(
+            "pending_events must use deterministic time/sequence queue order"
+        )
+
+    # Every event queued at the parent checkpoint must either have been
+    # dispatched into the suffix or still be present in the final pending queue.
+    for event_id, checkpoint_event in checkpoint_queue_by_id.items():
+        if suffix_by_id.get(event_id) != checkpoint_event:
+            raise TimelineContinuationError(
+                "continuation omits or changes an inherited checkpoint pending event"
+            )
+    if set(suffix_by_id) & checkpoint_history_ids:
+        raise TimelineContinuationError(
+            "continuation repeats an event already present in parent history"
+        )
+
+    known_ids = set(checkpoint_ids)
+    new_events: list[Event] = []
+    for event in sorted(suffix_events, key=lambda item: item.sequence):
+        inherited = checkpoint_queue_by_id.get(event.event_id)
+        if inherited is not None:
+            if event != inherited:
+                raise TimelineContinuationError(
+                    "inherited checkpoint event differs from its recorded value"
+                )
+            if event.parent_event_id is not None and event.parent_event_id not in checkpoint_ids:
+                raise TimelineContinuationError(
+                    "inherited event references an unknown checkpoint causal parent"
+                )
+            continue
+
+        if event.event_id != f"{record.timeline_id}:{event.sequence}":
+            raise TimelineContinuationError(
+                "branch event identity does not match its timeline and sequence"
+            )
+        if event.sequence < record.checkpoint.next_sequence:
+            raise TimelineContinuationError(
+                "branch event sequence precedes the parent checkpoint counter"
+            )
+        if event.time < record.checkpoint.current_time:
+            raise TimelineContinuationError(
+                "branch event schedules before the parent checkpoint time"
+            )
+        if event.parent_event_id is not None and (
+            event.parent_event_id == event.event_id
+            or event.parent_event_id not in known_ids
+        ):
+            raise TimelineContinuationError(
+                "branch event references an unknown or non-causal parent"
+            )
+        known_ids.add(event.event_id)
+        new_events.append(event)
+
+    branch_sequences = sorted(event.sequence for event in new_events)
+    expected_sequences = list(
+        range(
+            record.checkpoint.next_sequence,
+            record.checkpoint.next_sequence + len(new_events),
+        )
+    )
+    if branch_sequences != expected_sequences:
+        raise TimelineContinuationError(
+            "branch event sequences must be contiguous from the parent checkpoint counter"
+        )
+
+    new_events_by_id = {event.event_id: event for event in new_events}
     for index, item in enumerate(record.branch_inputs):
+        if not isinstance(item, EventInput):
+            raise TimelineContinuationError(f"branch_inputs[{index}] must be an EventInput")
         if item.time < record.checkpoint.current_time:
             raise TimelineContinuationError(
                 f"branch_inputs[{index}] schedules before the parent checkpoint time"
             )
-        if item.parent_event_id is not None and item.parent_event_id not in known_ids:
-            raise TimelineContinuationError(
-                f"branch_inputs[{index}] references an unknown causal parent"
-            )
-        event_id = f"{record.timeline_id}:{next_sequence}"
-        observed = observed_by_id.get(event_id)
+        sequence = record.checkpoint.next_sequence + index
+        event_id = f"{record.timeline_id}:{sequence}"
+        observed = new_events_by_id.get(event_id)
         if observed is None or (
-            observed.sequence != next_sequence
+            observed.sequence != sequence
             or observed.time != item.time
             or observed.event_type != item.event_type
             or observed.payload != item.payload
             or observed.parent_event_id != item.parent_event_id
         ):
             raise TimelineContinuationError(
-                f"branch input {index} is not present unchanged in the observed history"
+                f"branch input {index} is not present unchanged in the recorded boundary"
             )
-        known_ids.add(event_id)
-        next_sequence += 1
+
+    final_boundary_time = max(
+        record.checkpoint.current_time,
+        max(
+            (event.time for event in record.events),
+            default=record.checkpoint.current_time,
+        ),
+    )
+    if any(event.time < final_boundary_time for event in record.pending_events):
+        raise TimelineContinuationError(
+            "pending event precedes the recorded execution boundary"
+        )
 
     # Reuse the event-log validator for canonical payload, ordering, identity,
     # and causal-parent checks across inherited and branch-local history.
@@ -176,11 +309,12 @@ def capture_timeline_continuation(
     branch: SimulationEngine,
     branch_inputs: Iterable[EventInput],
 ) -> TimelineContinuation:
-    """Capture a completed fork and the exact inputs added to that branch.
+    """Capture a fork boundary and the exact inputs added to that branch.
 
-    Partial runs, remaining pending events, external pre-dispatch state changes,
-    and manual logical-time advancement are rejected: they are not represented
-    by the recorded branch inputs.
+    Schema v2 preserves the remaining deterministic event queue, allowing a
+    branch stopped at an event boundary to be replayed without dispatching
+    inherited or branch-local events twice. External pre-dispatch state changes
+    and manual logical-time advancement remain unsupported.
     """
     checkpoint = copy.deepcopy(parent.snapshot)
     if not isinstance(checkpoint, EngineSnapshot):
@@ -195,11 +329,6 @@ def capture_timeline_continuation(
         raise TimelineContinuationError("branch history does not preserve parent checkpoint history")
     if branch.initial_state != checkpoint.state:
         raise TimelineContinuationError("branch initial state differs from parent checkpoint state")
-    if branch_snapshot.queue:
-        raise TimelineContinuationError(
-            "cannot capture an incomplete continuation while pending events remain"
-        )
-
     expected_time = max(
         checkpoint.current_time,
         max((event.time for event in branch_snapshot.history), default=checkpoint.current_time),
@@ -225,6 +354,8 @@ def capture_timeline_continuation(
         parent_state_digest=state_digest(checkpoint.state),
         final_state_digest=state_digest(branch_snapshot.state),
         final_snapshot_digest=_snapshot_digest(branch_snapshot),
+        schema_version=CONTINUATION_SCHEMA_VERSION,
+        pending_events=branch_snapshot.queue,
     )
     _validate_continuation(record)
     return record
@@ -247,6 +378,10 @@ def timeline_continuation_to_json(record: TimelineContinuation) -> str:
         "final_state_digest": record.final_state_digest,
         "final_snapshot_digest": record.final_snapshot_digest,
     }
+    if record.schema_version >= 2:
+        document["pending_events"] = [
+            _event_to_dict(event) for event in record.pending_events
+        ]
     return _canonical_json(document)
 
 
@@ -272,8 +407,8 @@ def _parse_input(raw: Any, index: int) -> EventInput:
         raise TimelineContinuationError(str(exc)) from exc
 
 
-def _parse_event(raw: Any, index: int) -> Event:
-    label = f"events[{index}]"
+def _parse_event(raw: Any, index: int, collection: str = "events") -> Event:
+    label = f"{collection}[{index}]"
     item = _require_object(
         raw,
         {"event_id", "time", "sequence", "event_type", "payload", "parent_event_id"},
@@ -302,7 +437,7 @@ def _parse_event(raw: Any, index: int) -> Event:
 
 
 def timeline_continuation_from_json(source: str) -> TimelineContinuation:
-    """Parse and validate timeline-continuation schema version 1."""
+    """Parse and validate timeline-continuation schema version 1 or 2."""
     try:
         document = json.loads(
             source,
@@ -318,6 +453,14 @@ def timeline_continuation_from_json(source: str) -> TimelineContinuation:
             f"invalid timeline-continuation JSON: {exc}"
         ) from exc
 
+    if not isinstance(document, dict):
+        raise TimelineContinuationError("timeline continuation must be an object")
+    version = _require_int(document.get("schema_version"), "schema_version")
+    if version not in SUPPORTED_CONTINUATION_SCHEMA_VERSIONS:
+        raise TimelineContinuationError(
+            f"unsupported timeline-continuation schema version: {version}"
+        )
+
     expected = {
         "schema_version",
         "parent_timeline_id",
@@ -332,12 +475,10 @@ def timeline_continuation_from_json(source: str) -> TimelineContinuation:
         "final_state_digest",
         "final_snapshot_digest",
     }
+    if version >= 2:
+        expected.add("pending_events")
     document = _require_object(document, expected, "timeline continuation")
-    version = _require_int(document["schema_version"], "schema_version")
-    if version != CONTINUATION_SCHEMA_VERSION:
-        raise TimelineContinuationError(
-            f"unsupported timeline-continuation schema version: {version}"
-        )
+
     checkpoint_document = document["checkpoint"]
     if not isinstance(checkpoint_document, dict):
         raise TimelineContinuationError("checkpoint must be a snapshot object")
@@ -345,8 +486,15 @@ def timeline_continuation_from_json(source: str) -> TimelineContinuation:
 
     raw_inputs = document["branch_inputs"]
     raw_events = document["events"]
-    if not isinstance(raw_inputs, list) or not isinstance(raw_events, list):
-        raise TimelineContinuationError("branch_inputs and events must be arrays")
+    raw_pending = document.get("pending_events", [])
+    if (
+        not isinstance(raw_inputs, list)
+        or not isinstance(raw_events, list)
+        or not isinstance(raw_pending, list)
+    ):
+        raise TimelineContinuationError(
+            "branch_inputs, events, and pending_events must be arrays"
+        )
 
     record = TimelineContinuation(
         parent_timeline_id=document["parent_timeline_id"],
@@ -363,6 +511,10 @@ def timeline_continuation_from_json(source: str) -> TimelineContinuation:
         final_state_digest=document["final_state_digest"],
         final_snapshot_digest=document["final_snapshot_digest"],
         schema_version=version,
+        pending_events=tuple(
+            _parse_event(item, index, "pending_events")
+            for index, item in enumerate(raw_pending)
+        ),
     )
     _validate_continuation(record)
     return record
@@ -418,7 +570,7 @@ def replay_timeline_continuation(
     *,
     max_events: int = 100_000,
 ) -> SimulationEngine:
-    """Recreate a fork from its parent checkpoint and verify its complete result."""
+    """Recreate a fork boundary and verify history, pending queue, and digests."""
     if isinstance(max_events, bool) or not isinstance(max_events, int) or max_events < 0:
         raise ValueError("max_events must be a non-negative integer")
     _validate_continuation(record)
@@ -436,14 +588,18 @@ def replay_timeline_continuation(
             item.payload,
             parent_event_id=item.parent_event_id,
         )
-    engine.run(max_events=min(max_events, len(record.events) + 1))
+    # Dispatch exactly the recorded number of events. The resulting queue is
+    # compared below, so unexpected handler-generated events cannot be hidden.
+    engine.run(max_events=len(record.events))
 
-    if engine.pending_events:
-        raise ReplayMismatchError("continuation replay left pending events")
     expected_history = (*record.checkpoint.history, *record.events)
     if engine.history != expected_history:
         raise ReplayMismatchError(
             "replayed continuation history differs from the recorded history"
+        )
+    if engine.pending_events != record.pending_events:
+        raise ReplayMismatchError(
+            "replayed continuation pending queue differs from the recorded queue"
         )
     if state_digest(engine.state) != record.final_state_digest:
         raise ReplayMismatchError(
@@ -454,3 +610,4 @@ def replay_timeline_continuation(
             "replayed continuation snapshot digest differs from the recorded digest"
         )
     return engine
+

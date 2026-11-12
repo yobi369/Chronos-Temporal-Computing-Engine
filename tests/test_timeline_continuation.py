@@ -120,18 +120,101 @@ def test_continuation_rejects_branch_inputs_that_do_not_match_history():
         timeline_continuation_to_json(altered)
 
 
-def test_incomplete_or_manually_advanced_forks_cannot_be_captured():
+def test_completed_continuation_schema_v1_remains_readable_and_writable():
+    _, _, record = build_continuation()
+    legacy = replace(record, schema_version=1, pending_events=())
+
+    encoded = timeline_continuation_to_json(legacy)
+    assert '"pending_events"' not in encoded
+    parsed = timeline_continuation_from_json(encoded)
+
+    assert parsed.schema_version == 1
+    assert timeline_continuation_to_json(parsed) == encoded
+    replayed = replay_timeline_continuation(parsed, {"add": add})
+    assert replayed.history == (*record.checkpoint.history, *record.events)
+
+
+def test_partial_fork_continuation_replays_with_handler_generated_pending_event(
+    tmp_path,
+):
+    def spawn(event, simulation):
+        simulation.state["spawned"] = True
+        simulation.schedule(event.time + 1, "add", {"amount": 7})
+
+    parent_engine = SimulationEngine("root")
+    parent_engine.state = {"total": 10}
+    parent_engine.register("add", add)
+    parent_engine.schedule(1, "add", {"amount": 2})
+    parent = Timeline.capture("checkpoint", parent_engine)
+    parent_before = parent.snapshot
+
+    handlers = {"add": add, "spawn": spawn}
+    branch = parent.fork("branch", handlers=handlers)
+    inputs = (EventInput(2, "spawn", {"flag": True}),)
+    for item in inputs:
+        branch.schedule(item.time, item.event_type, item.payload)
+    branch.run(max_events=2)
+
+    record = capture_timeline_continuation(parent, branch, inputs)
+    assert record.schema_version == 2
+    assert record.events == branch.history[len(parent.snapshot.history) :]
+    assert record.pending_events == branch.pending_events
+    assert len(record.pending_events) == 1
+    assert record.pending_events[0].parent_event_id == branch.history[-1].event_id
+
+    path = tmp_path / "partial-branch.json"
+    write_timeline_continuation(path, record)
+    loaded = read_timeline_continuation(path)
+    replayed = replay_timeline_continuation(loaded, handlers)
+
+    assert replayed.snapshot() == branch.snapshot()
+    assert replayed.pending_events == branch.pending_events
+    assert parent.snapshot == parent_before
+
+
+def test_zero_dispatch_partial_continuation_preserves_entire_queue():
+    parent_engine = SimulationEngine("root")
+    parent_engine.state = {"total": 4}
+    parent_engine.register("add", add)
+    parent_engine.schedule(1, "add", {"amount": 2})
+    parent = Timeline.capture("checkpoint", parent_engine)
+    branch = parent.fork("branch", handlers={"add": add})
+    inputs = (EventInput(2, "add", {"amount": 3}),)
+    branch.schedule(2, "add", {"amount": 3})
+
+    record = capture_timeline_continuation(parent, branch, inputs)
+    assert record.events == ()
+    assert record.pending_events == branch.pending_events
+
+    replayed = replay_timeline_continuation(record, {"add": add}, max_events=0)
+    assert replayed.snapshot() == branch.snapshot()
+
+
+def test_partial_continuation_rejects_pending_queue_tampering():
+    def spawn(event, simulation):
+        simulation.schedule(event.time + 1, "add", {"amount": 7})
+
+    parent_engine = SimulationEngine("root")
+    parent_engine.state = {"total": 1}
+    parent_engine.register("add", add)
+    parent = Timeline.capture("checkpoint", parent_engine)
+    branch = parent.fork("branch", handlers={"add": add, "spawn": spawn})
+    inputs = (EventInput(1, "spawn", {"flag": True}),)
+    branch.schedule(1, "spawn", {"flag": True})
+    branch.run(max_events=1)
+    record = capture_timeline_continuation(parent, branch, inputs)
+
+    altered_event = replace(record.pending_events[0], payload={"amount": 999})
+    altered = replace(record, pending_events=(altered_event,))
+    with pytest.raises(ReplayMismatchError, match="pending queue"):
+        replay_timeline_continuation(altered, {"add": add, "spawn": spawn})
+
+
+def test_incomplete_forks_with_manual_logical_time_advance_cannot_be_captured():
     parent_engine = SimulationEngine("root")
     parent_engine.state = {"total": 10}
     parent_engine.register("add", add)
     parent = Timeline.capture("checkpoint", parent_engine)
-
-    pending = parent.fork("pending", handlers={"add": add})
-    pending.schedule(2, "add", {"amount": 1})
-    with pytest.raises(EventLogError, match="pending events remain"):
-        capture_timeline_continuation(
-            parent, pending, (EventInput(2, "add", {"amount": 1}),)
-        )
 
     advanced = parent.fork("advanced", handlers={"add": add})
     advanced.schedule(2, "add", {"amount": 1})

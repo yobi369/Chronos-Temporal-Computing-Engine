@@ -4,20 +4,21 @@ Chronos event-log schema v3 records a run that starts from an initial state and 
 
 ## Independent continuation format
 
-TimelineContinuation uses its own schema version 1. It does not change or replace event-log schemas v1–v3. A continuation record contains:
+TimelineContinuation uses an independent schema. Version 1 remains readable and writable for completed forks; version 2 adds an explicit pending-event queue for event-boundary partial runs. It does not change or replace event-log schemas v1–v3. A continuation record contains:
 
 - the parent timeline ID and the fork's timeline ID;
 - the complete parent EngineSnapshot in the existing snapshot-v2 format;
 - the parent history length, history digest, state digest, and full checkpoint digest;
 - only the new driver inputs scheduled on the fork;
 - the observed history suffix produced after the checkpoint;
+- in schema v2, the remaining pending queue in deterministic time/sequence order;
 - the final state digest and final engine-snapshot digest.
 
 The embedded checkpoint is self-contained. The parent history is retained once inside the snapshot; the continuation stores only the appended history suffix. The checkpoint digest covers the parent timeline ID, logical time, pending queue, history, state, sequence counter, and logical-clock value. The separate history and state digests make the lineage boundary explicit and independently checkable.
 
 ## Capture, persistence, and replay
 
-A completed fork can be recorded as follows:
+A completed fork can be recorded as follows (the capture API now writes schema v2):
 
     from chronos import (
         EventInput,
@@ -49,14 +50,17 @@ The format has strict fields and canonical JSON encoding. Reads are size-bounded
 
 ## Capture boundary
 
-Schema v1 deliberately records **completed discrete-event continuations only**. Capture rejects a branch if:
+Schema v1 records **completed discrete-event continuations only**. Schema v2 also records a fork stopped at a deterministic event boundary, including the exact remaining queue. For a partial run, capture records the dispatched history suffix and pending queue; replay dispatches exactly the recorded number of events, then compares the reconstructed queue, state digest, and complete snapshot digest. This supports both a zero-dispatch boundary and a branch whose handlers have scheduled additional pending events.
+
+Both versions reject a branch if:
 
 - its inherited parent history is not an exact prefix;
 - the branch's pre-dispatch state differs from the parent checkpoint state;
-- pending events remain;
 - logical time was manually or continuously advanced beyond the final dispatched event.
 
-A partial run needs an explicit run-boundary/continuation protocol before it can be replayed faithfully. Continuous integrator state and external mutations are not inferred from a discrete event history. Applications should represent external changes as recorded events and keep handlers deterministic with respect to recorded inputs.
+Schema v2 does not infer arbitrary stop conditions or capture continuous-integrator state. It represents the scheduler boundary as the recorded history suffix plus pending queue, sequence/counter state committed by the final snapshot digest, and the caller-supplied branch inputs. External mutations must be represented as recorded events; unrecorded changes to state or scheduler counters will fail replay verification.
+
+The v1 JSON field set is unchanged. Schema v2 adds a required `pending_events` array, including an empty array for completed runs. Readers reject unknown versions, duplicate keys, non-canonical payload values, and queue entries inconsistent with the parent checkpoint or recorded branch inputs.
 
 ## Trust and scientific scope
 
