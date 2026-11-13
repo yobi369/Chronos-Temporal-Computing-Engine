@@ -45,3 +45,27 @@ def test_snapshot_rejects_duplicate_event_ids_across_queue_and_history():
     malformed = replace(snapshot, queue=(queued,), history=(historical,), next_sequence=2)
     with pytest.raises(EventLogError, match="duplicate event IDs"):
         snapshot_from_json(snapshot_to_json(malformed))
+
+
+def test_snapshot_constructor_detaches_nested_state_and_event_payloads():
+    from chronos.engine import EngineSnapshot
+    from chronos.events import Event
+
+    source_state = {"nested": {"values": [1]}}
+    source_event_payload = {"nested": {"values": [2]}}
+    queued = Event("snapshot:0", 5, 0, "noop", source_event_payload)
+    snapshot = EngineSnapshot(
+        "snapshot",
+        0,
+        1,
+        (queued,),
+        (),
+        source_state,
+        0,
+    )
+
+    source_state["nested"]["values"].append(3)
+    source_event_payload["nested"]["values"].append(4)
+
+    assert snapshot.state == {"nested": {"values": [1]}}
+    assert snapshot.queue[0].payload == {"nested": {"values": [2]}}
