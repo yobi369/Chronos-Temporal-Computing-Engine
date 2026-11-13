@@ -322,3 +322,39 @@ def test_schema_v3_rejects_non_json_initial_state():
     )
     with pytest.raises(EventLogError, match="canonical JSON"):
         event_log_to_json(invalid)
+
+
+def test_event_input_detaches_nested_payload_from_constructor_argument():
+    source = {"nested": {"items": [1, 2]}}
+    item = EventInput(1, "increment", source)
+
+    source["nested"]["items"].append(3)
+
+    assert item.payload == {"nested": {"items": [1, 2]}}
+
+
+def test_event_log_detaches_constructor_owned_inputs_events_and_state():
+    from chronos.events import Event
+
+    source_input_payload = {"nested": {"items": [1]}}
+    source_event_payload = {"nested": {"items": [2]}}
+    source_state = {"nested": {"value": 3}}
+    initial_input = EventInput(1, "record", source_input_payload)
+    observed_event = Event("root:0", 1, 0, "record", source_event_payload)
+    log = EventLog(
+        timeline_id="ownership",
+        initial_events=(initial_input,),
+        events=(observed_event,),
+        final_state_digest=state_digest({"result": "fixed"}),
+        initial_state=source_state,
+    )
+
+    source_input_payload["nested"]["items"].append(10)
+    source_event_payload["nested"]["items"].append(20)
+    source_state["nested"]["value"] = 30
+    initial_input.payload["nested"]["items"].append(40)
+    observed_event.payload["nested"]["items"].append(50)
+
+    assert log.initial_events[0].payload == {"nested": {"items": [1]}}
+    assert log.events[0].payload == {"nested": {"items": [2]}}
+    assert log.initial_state == {"nested": {"value": 3}}
