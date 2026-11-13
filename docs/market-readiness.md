@@ -14,7 +14,7 @@ Do not market Chronos as a physical time machine, a general-purpose distributed 
 
 Initial market discovery should target research groups, simulation developers, and engineering teams that need reproducible discrete-event experiments. Institutional or regulated deployments require a separate threat model, deployment design, operational review, and acceptance testing.
 
-## Release stages
+See [competitive positioning and proof programme](competitive-positioning.md) for the market hypothesis, alternative-tool landscape, target workflows, and evidence required before making comparative claims.\n\n## Release stages
 
 | Stage | Meaning | Exit evidence |
 |---|---|---|
