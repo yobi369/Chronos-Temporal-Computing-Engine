@@ -90,3 +90,10 @@ The writer stores to a temporary file in the destination directory, flushes and 
 ## Verification boundary
 
 A matching history and state digest show that a particular handler set reproduced a particular recorded run under the tested runtime and inputs. They do not establish physical time travel, quantum effects, relativistic predictions, or any other physical theory.
+
+## Payload ownership and mutation boundaries
+
+EventInput copies its payload when constructed. EventLog copies its initial-input tuple, observed-event tuple, and initial state when constructed, so later mutation of the original objects supplied by the caller does not silently rewrite the captured record. The event log is still a Python object graph: callers should treat its nested values as read-only after construction. Serialization validates canonical JSON values each time it is requested; a state digest detects replay divergence but does not prevent in-memory mutation or authenticate the file.
+
+This is an ownership boundary, not a deep immutable data model. Do not share a mutable EventLog instance between untrusted callers or concurrent writers. Persist a validated canonical representation when a stable artifact is required.
+
