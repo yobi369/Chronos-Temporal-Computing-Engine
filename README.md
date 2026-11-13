@@ -33,7 +33,7 @@ Run the benchmark:
 
     python benchmarks/run_benchmarks.py --events 10000 --warmups 2 --repeats 7
 
-See docs/architecture.md, docs/event-logs-and-replay.md, docs/timeline-continuations.md, docs/event-log-migration.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md, docs/validation.md and docs/research-roadmap.md.
+See docs/architecture.md, docs/event-logs-and-replay.md, docs/timeline-continuations.md, docs/event-log-migration.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md, docs/validation.md, docs/research-roadmap.md and docs/market-readiness.md.
 
 ## Important limitations
 
