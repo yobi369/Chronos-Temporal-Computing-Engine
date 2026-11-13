@@ -87,10 +87,20 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         result[key] = value
     return result
 
+def _reject_constant(token: str) -> Any:
+    raise EventLogError(f"non-standard JSON numeric constant is not allowed: {token}")
+
+
 def snapshot_from_json(source: str) -> EngineSnapshot:
     """Read v2 or migrate a supported flat v1 snapshot in memory."""
     try:
-        document = json.loads(source, object_pairs_hook=_reject_duplicate_keys)
+        document = json.loads(
+            source,
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_constant,
+        )
+    except RecursionError as exc:
+        raise EventLogError("snapshot JSON exceeds the supported nesting depth") from exc
     except json.JSONDecodeError as exc:
         raise EventLogError(f"invalid snapshot JSON: {exc}") from exc
     if not isinstance(document, dict):

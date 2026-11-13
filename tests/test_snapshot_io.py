@@ -69,3 +69,15 @@ def test_snapshot_constructor_detaches_nested_state_and_event_payloads():
 
     assert snapshot.state == {"nested": {"values": [1]}}
     assert snapshot.queue[0].payload == {"nested": {"values": [2]}}
+
+
+def test_snapshot_rejects_non_standard_json_numeric_constants():
+    source = snapshot_to_json(engine_snapshot()).replace('"counter":7', '"counter":NaN')
+    with pytest.raises(EventLogError, match="non-standard JSON numeric constant"):
+        snapshot_from_json(source)
+
+
+def test_snapshot_rejects_excessive_json_nesting_cleanly():
+    source = "[" * 1100 + "0" + "]" * 1100
+    with pytest.raises(EventLogError, match="nesting depth"):
+        snapshot_from_json(source)
