@@ -4,7 +4,7 @@ Chronos v0.5.0 is an early-stage research software project for deterministic, si
 
 ## Components
 
-- Event: frozen event envelope with identity, logical timestamp, sequence, type, payload, and optional causal parent. The dataclass is frozen, but nested payload objects are ordinary Python values and are not deeply immutable.
+- Event: frozen event envelope with identity, logical timestamp, sequence, type, payload, and optional causal parent. The dataclass is frozen, but nested payload objects are ordinary mutable Python values. Engine scheduling returns detached copies; queue/history accessors return deep copies; and the event payload recorded in history is snapshotted before handler invocation. Mutating a caller-owned scheduled/read event or a handler-local event payload therefore does not rewrite engine-owned queued or historical records. Event payloads should still be treated as read-only inputs for clear handler semantics.
 - LogicalClock: Lamport-style counter for ordering knowledge.
 - VectorClock: distributed happens-before observations; concurrent vectors are incomparable under the vector-clock relation.
 - SimulationEngine: priority-queue scheduler, handler dispatcher, and in-memory transaction boundary.
@@ -45,6 +45,6 @@ The worker protocol provides HMAC-authenticated messages and acknowledgements, s
 
 ## Limitations
 
-Event payloads are not deeply immutable. Hybrid integration uses explicit RK4 methods for non-stiff ODEs and quantizes localized sign-changing roots upward to integer ticks; tangential-root detection and certified solvers are not implemented. Uncertain-time scheduling uses a declared latest-bound policy; its Monte Carlo estimates assume independent uniform timing errors. Symbolic checking is bounded explicit-state exploration over caller-supplied transitions. Checkpoint persistence is a single-writer local-filesystem protocol, not a general database or universal power-loss guarantee.
+Event payloads remain mutable Python values within each detached Event instance; the engine protects its own queue and history from caller/handler payload mutation by copying at API boundaries, but Event is not a deeply immutable value object. Hybrid integration uses explicit RK4 methods for non-stiff ODEs and quantizes localized sign-changing roots upward to integer ticks; tangential-root detection and certified solvers are not implemented. Uncertain-time scheduling uses a declared latest-bound policy; its Monte Carlo estimates assume independent uniform timing errors. Symbolic checking is bounded explicit-state exploration over caller-supplied transitions. Checkpoint persistence is a single-writer local-filesystem protocol, not a general database or universal power-loss guarantee.
 
 Relativistic time dilation, quantum temporal models, closed timelike curves, and physical time travel are unimplemented research directions. No physical predictions are claimed.
