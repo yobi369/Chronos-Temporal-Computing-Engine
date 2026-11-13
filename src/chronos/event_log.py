@@ -86,6 +86,7 @@ class EventInput:
             not isinstance(self.parent_event_id, str) or not self.parent_event_id
         ):
             raise ValueError("input parent_event_id must be a non-empty string or null")
+        object.__setattr__(self, "payload", copy.deepcopy(self.payload))
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +102,12 @@ class EventLog:
     initial_state: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        # A frozen dataclass does not freeze nested Python containers. Detach all
+        # caller-owned inputs so later mutation cannot rewrite a captured history.
+        if isinstance(self.initial_events, tuple):
+            object.__setattr__(self, "initial_events", copy.deepcopy(self.initial_events))
+        if isinstance(self.events, tuple):
+            object.__setattr__(self, "events", copy.deepcopy(self.events))
         if isinstance(self.payload_schemas, Mapping):
             object.__setattr__(
                 self, "payload_schemas", MappingProxyType(dict(self.payload_schemas))
