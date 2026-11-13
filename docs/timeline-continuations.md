@@ -62,6 +62,17 @@ Schema v2 does not infer arbitrary stop conditions or capture continuous-integra
 
 The v1 JSON field set is unchanged. Schema v2 adds a required `pending_events` array, including an empty array for completed runs. Readers reject unknown versions, duplicate keys, non-canonical payload values, and queue entries inconsistent with the parent checkpoint or recorded branch inputs.
 
+## Canonical compatibility fixtures
+
+The exact wire representation is pinned by two small golden fixtures:
+
+- `tests/fixtures/timeline-continuation-v1-empty.json` pins the completed-fork v1 field set.
+- `tests/fixtures/timeline-continuation-v2-empty.json` pins the v2 field set, including the required `pending_events` array even when it is empty.
+
+These empty-checkpoint fixtures isolate the envelope and nested snapshot encoding so key ordering, omitted fields, digest representation, and the v2 queue field cannot drift unnoticed. Non-empty histories, handler-generated pending events, tampering, and fresh-process resume behavior remain covered by the behavioral tests in `tests/test_timeline_continuation.py`.
+
+A wire-format change must introduce a new continuation schema version and preserve these historical fixtures; do not update an existing golden fixture merely to make a changed serializer pass.
+
 ## Trust and scientific scope
 
 The embedded snapshot and digests provide reproducibility and consistency checks, not cryptographic authenticity. Records are not signed or encrypted, and replay executes caller-registered Python handlers; it is not a sandbox for untrusted code. Handlers must not depend on hidden wall-clock, network, random, environment, or external-file state unless those dependencies are captured as explicit inputs.
