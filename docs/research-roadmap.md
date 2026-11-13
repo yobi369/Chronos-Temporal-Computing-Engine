@@ -36,6 +36,14 @@ A completed software milestone is not evidence for a physical theory.
 - [x] Add subprocess termination testing between checkpoint generation and commit-pointer updates.
 - [x] Expand CI across Linux, macOS and Windows hosted runners and publish benchmark reproduction artifacts from each OS (Python 3.12 matrix).
 
+## Milestone 6 — replayable branching histories
+- [x] Self-contained timeline-continuation schema v1 for completed discrete-event forks, independent of event-log schemas v1–v3.
+- [x] Continuation schema v2 for event-boundary partial forks, including deterministic pending-queue capture and replay.
+- [x] Fresh-process continuation replay and resume checks for history, pending queue, state digest, and scheduler snapshot digest.
+- [x] Exact canonical JSON golden fixtures for continuation schemas v1 and v2.
+- [ ] Record arbitrary external driver actions and continuous-integrator state as explicit continuation inputs.
+- [ ] Validate continuation recovery under process interruption and filesystem-specific durability conditions beyond the existing event-log/checkpoint tests.
+
 ## Verification boundaries
 
 The RK4 implementation is explicit and testable, but not suitable for stiff systems and not independently certified. Adaptive step-doubling estimates local truncation error; it is not a rigorous global error bound. Hybrid coupling stops at the next discrete boundary and localizes sign-changing roots by bisection; tangential root detection, dense output and certified solvers remain unimplemented.
