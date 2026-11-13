@@ -49,11 +49,13 @@ class SimulationEngine:
 
     @property
     def history(self) -> tuple[Event, ...]:
-        return tuple(self._history)
+        """Return detached event copies so callers cannot rewrite recorded history."""
+        return copy.deepcopy(tuple(self._history))
 
     @property
     def pending_events(self) -> tuple[Event, ...]:
-        return tuple(item[2] for item in sorted(self._queue))
+        """Return detached queue entries so callers cannot mutate scheduled work."""
+        return copy.deepcopy(tuple(item[2] for item in sorted(self._queue)))
 
     def register(self, event_type: str, handler: EventHandler) -> None:
         if not event_type or event_type in self._handlers:
@@ -75,7 +77,8 @@ class SimulationEngine:
         sequence = self._next_sequence; self._next_sequence += 1
         event = Event(f'{self.timeline_id}:{sequence}',time,sequence,event_type,copy.deepcopy(payload or {}),parent)
         heapq.heappush(self._queue,(time,sequence,event)); self._clock.tick()
-        return event
+        # The queue owns its event. The returned value is a detached caller-owned copy.
+        return copy.deepcopy(event)
 
     def integrate_continuous(self, rhs: Derivative, initial: tuple[float,...], *,
         start: float, stop: float, step: float,
@@ -132,6 +135,8 @@ class SimulationEngine:
         state_before=copy.deepcopy(self.state); queue_before=copy.deepcopy(self._queue)
         next_sequence_before=self._next_sequence; clock_before=self._clock.value; time_before=self.current_time
         _,_,event=heapq.heappop(self._queue); self.current_time=event.time; self._current_event=event
+        # Preserve the scheduled input separately from any handler-local mutation.
+        recorded_event = copy.deepcopy(event)
         try:
             self._handlers[event.event_type](event,self)
         except Exception:
@@ -140,8 +145,8 @@ class SimulationEngine:
             raise
         finally:
             self._current_event=None
-        self._history.append(event); self._clock.tick()
-        return event
+        self._history.append(recorded_event); self._clock.tick()
+        return copy.deepcopy(recorded_event)
 
     def run(self, *, until: int | None=None, max_events: int | None=None) -> tuple[Event,...]:
         if until is not None and until<self.current_time: raise ValueError('until cannot precede current time')
