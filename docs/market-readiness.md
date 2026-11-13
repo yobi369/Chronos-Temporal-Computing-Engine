@@ -33,7 +33,7 @@ Chronos must not skip stages by changing README wording or package classifiers.
 - Preserve event-log schemas v1–v3 and timeline-continuation schemas v1–v2 with immutable golden fixtures.
 - Publish machine-readable payload and record schemas, including required fields, bounds, canonicalization rules, and compatibility behavior.
 - Specify deterministic handler requirements and the exact boundary between recorded inputs and external effects.
-- Deeply freeze or defensively copy event payloads at scheduling and persistence boundaries; prove that caller mutation cannot silently change queued or historical events.
+- Extend defensive-copy guarantees across EventLog, continuation, and snapshot construction; add tests proving that caller mutation after capture cannot rewrite serialized history. The scheduler now detaches queued, returned, and historical event copies, but the Event dataclass remains shallowly frozen.
 - Add adversarial tests for duplicate identifiers, causal-parent inconsistencies, malformed numeric values, excessive nesting/size, duplicate JSON keys, truncated writes, and corrupted checkpoints.
 - Define digest algorithm/version/domain separation and the exact bytes covered by each digest. Digests remain consistency checks, not authenticity proofs.
 
@@ -110,7 +110,7 @@ The following are confirmed by current repository documentation/configuration an
 
 1. Package metadata still declares version 0.5.0 and `Development Status :: 2 - Pre-Alpha`.
 2. README describes an early-stage research project and explicitly limits event-log persistence to a local single-writer protocol.
-3. Event payload dataclasses are not deeply immutable; nested payload values can be mutable.
+3. The scheduler now isolates its internal queue/history from caller mutation through defensive copies, but Event payload objects remain mutable within each detached copy. EventLog, continuation, and snapshot constructor aliasing still need explicit tests and a documented ownership contract.
 4. Worker processing is at-least-once; handlers must be idempotent. HMAC does not encrypt transport.
 5. Distributed membership, leader election, consensus, partition ownership, and multi-node independent validation are not implemented.
 6. Continuations do not capture arbitrary external driver actions or continuous-integrator state.
