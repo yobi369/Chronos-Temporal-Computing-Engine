@@ -48,3 +48,10 @@ The worker protocol provides HMAC-authenticated messages and acknowledgements, s
 Event payloads remain mutable Python values within each detached Event instance; the engine protects its own queue and history from caller/handler payload mutation by copying at API boundaries, but Event is not a deeply immutable value object. Hybrid integration uses explicit RK4 methods for non-stiff ODEs and quantizes localized sign-changing roots upward to integer ticks; tangential-root detection and certified solvers are not implemented. Uncertain-time scheduling uses a declared latest-bound policy; its Monte Carlo estimates assume independent uniform timing errors. Symbolic checking is bounded explicit-state exploration over caller-supplied transitions. Checkpoint persistence is a single-writer local-filesystem protocol, not a general database or universal power-loss guarantee.
 
 Relativistic time dilation, quantum temporal models, closed timelike curves, and physical time travel are unimplemented research directions. No physical predictions are claimed.
+
+## Snapshot and event-log ownership
+
+EngineSnapshot detaches its queue, history, and state from the objects passed to its constructor. EventInput detaches its payload at construction, and EventLog detaches the supplied input tuple, observed event tuple, and initial state. These boundaries prevent later mutation of caller-owned source objects from silently changing a newly constructed checkpoint or event log.
+
+The contained Python dictionaries and lists are not recursively immutable once exposed through the snapshot or event-log object itself. Treat captured records as read-only after construction and serialize validated canonical JSON for a stable persisted artifact. This limitation is distinct from scheduler queue/history isolation, which returns detached copies at its public accessors.
+
