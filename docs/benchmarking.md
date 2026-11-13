@@ -2,7 +2,7 @@
 
 Run: python benchmarks/run_benchmarks.py --events 10000 --warmups 2 --repeats 7
 
-The harness performs warmups excluded from measurement, records each repetition using time.perf_counter, and reports minimum, median, mean, maximum, and median throughput. The JSON result includes the experiment manifest, runtime/platform, workload parameters, raw samples, and methodology.
+The harness excludes warmups, records each repetition with time.perf_counter, and reports minimum, median, mean, and maximum elapsed time for each implementation, plus median event throughput. It also reports the paired median difference and a seeded percentile bootstrap interval. The JSON result includes the experiment manifest, runtime/platform, workload parameters, raw samples, summary statistics, and methodology. The interval describes resampling variability only; it does not correct systematic differences between the implementations.
 
 For defensible comparisons:
 

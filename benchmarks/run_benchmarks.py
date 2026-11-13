@@ -32,6 +32,11 @@ def timed(fn,n):
     start=time.perf_counter(); fn(n); return time.perf_counter()-start
 
 def bootstrap_median_ci(differences: list[float], seed: int, draws: int=4000) -> list[float]:
+    """Return a reproducible percentile interval for the paired median."""
+    if not differences:
+        raise ValueError("differences must contain at least one observation")
+    if draws < 1:
+        raise ValueError("draws must be positive")
     rng=random.Random(seed); n=len(differences); estimates=[]
     for _ in range(draws):
         sample=[differences[rng.randrange(n)] for _ in range(n)]
@@ -64,7 +69,13 @@ def main() -> None:
     result={"manifest":json.loads(manifest.to_json()),
         "runtime":{"python":platform.python_version(),"platform":platform.platform()},
         "paired_samples_seconds":{"chronos":chrono,"reference":reference,"chronos_minus_reference":diffs},
-        "summary":{"chronos_median":statistics.median(chrono),"reference_median":statistics.median(reference),
+        "summary":{
+            "chronos_min":min(chrono),"chronos_median":statistics.median(chrono),
+            "chronos_mean":statistics.mean(chrono),"chronos_max":max(chrono),
+            "reference_min":min(reference),"reference_median":statistics.median(reference),
+            "reference_mean":statistics.mean(reference),"reference_max":max(reference),
+            "chronos_median_events_per_second":args.events/statistics.median(chrono),
+            "reference_median_events_per_second":args.events/statistics.median(reference),
             "paired_median_difference":statistics.median(diffs),
             "paired_median_difference_bootstrap_95_percent_ci":bootstrap_median_ci(diffs,args.seed),
             "bootstrap_draws":4000,"bootstrap_seed":args.seed},
