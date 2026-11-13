@@ -78,10 +78,10 @@ def test_snapshot_rejects_non_standard_json_numeric_constants():
 
 
 def test_snapshot_rejects_excessive_json_nesting_cleanly():
-    document = json.loads(snapshot_to_json(engine_snapshot()))
-    document["engine"]["state"] = {"deep": 0}
-    for _ in range(1100):
-        document["engine"]["state"] = {"deep": document["engine"]["state"]}
-    source = json.dumps(document)
+    snapshot = engine_snapshot()
+    source = snapshot_to_json(snapshot)
+    original_state = json.dumps(snapshot.state, separators=(",", ":"))
+    nested_state = '{"deep":' * 1100 + "0" + "}" * 1100
+    source = source.replace('"state":' + original_state, '"state":' + nested_state)
     with pytest.raises(EventLogError, match="nesting depth"):
         snapshot_from_json(source)
