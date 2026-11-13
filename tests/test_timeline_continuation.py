@@ -285,3 +285,31 @@ print(len(engine.history))
         state_digest(expected.state),
         str(len(expected.history)),
     ]
+
+
+
+@pytest.mark.parametrize(
+    ("filename", "content", "message"),
+    [
+        ("invalid-utf8.json", bytes([0xFF]), "must be UTF-8"),
+        ("truncated.json", b'{"schema_version":', "invalid timeline-continuation JSON"),
+    ],
+)
+def test_persisted_continuation_rejects_invalid_utf8_and_truncated_json(
+    tmp_path, filename, content, message
+):
+    from chronos.continuation import read_timeline_continuation
+
+    target = tmp_path / filename
+    target.write_bytes(content)
+    with pytest.raises(EventLogError, match=message):
+        read_timeline_continuation(target)
+
+
+def test_persisted_continuation_enforces_read_limit(tmp_path):
+    from chronos.continuation import read_timeline_continuation
+
+    target = tmp_path / "oversized.json"
+    target.write_text("{}" * 20, encoding="utf-8")
+    with pytest.raises(EventLogError, match="read limit"):
+        read_timeline_continuation(target, max_bytes=10)
