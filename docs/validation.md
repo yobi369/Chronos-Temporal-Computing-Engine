@@ -41,3 +41,8 @@ Further work includes broader cross-version serialized-fixture guarantees across
 Replay assumes deterministic registered handlers and explicit initial inputs. It cannot make hidden network, clock, random, filesystem, environment, or global-state dependencies reproducible unless those dependencies are captured or controlled. Event payload copies isolate engine-owned queue/history records, but individual Event payload objects remain mutable; tests do not claim deep immutability of arbitrary Python values.
 
 No software test result establishes a claim about the nature of physical time.
+
+## Constructor ownership regression tests
+
+Focused tests now verify that EventInput detaches nested payloads, EventLog detaches caller-supplied input/event/state objects, and EngineSnapshot detaches caller-supplied queue payloads and state. These checks complement scheduler accessor isolation. They do not claim that nested dictionaries exposed from an already-constructed snapshot or event log are deeply immutable; the public contract continues to require treating captured records as read-only.
+
