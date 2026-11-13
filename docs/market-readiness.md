@@ -138,6 +138,12 @@ A 1.0 candidate is blocked until all applicable items have evidence attached to 
 - [ ] Release artifacts have provenance/checksums and a documented rollback/recovery plan.
 - [ ] A named deployment profile has its own operational and acceptance sign-off before production claims.
 
+## Latest ownership-hardening increment
+
+The scheduler, EventInput, EventLog, and EngineSnapshot now detach selected nested values at their construction or API boundaries. Focused regression tests cover caller-owned nested payloads/state for event inputs, event logs, and snapshots. This prevents mutation of the original constructor arguments from silently changing the captured record.
+
+This does not make the returned EventLog or EngineSnapshot object graphs deeply immutable: nested dictionaries/lists exposed by those records remain mutable. Treat captured records as read-only after construction. A future API design decision is required before 1.0: either private immutable representations with defensive accessors, or a documented mutable-record contract with copy-on-export. The latest change is awaiting the full CI matrix; no passing result is claimed yet.
+
 ## Scientific scope boundary
 
 The engine's software semantics and numerical methods must be evaluated as software and mathematics. Relativistic time dilation, quantum temporal effects, closed timelike curves, and physical time travel remain unimplemented research directions. No software milestone, test suite, benchmark, or market-readiness review establishes a physical theory.
