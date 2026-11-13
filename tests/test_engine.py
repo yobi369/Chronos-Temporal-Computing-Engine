@@ -75,3 +75,45 @@ def test_handler_failure_rolls_back_engine_managed_mutations():
     assert engine.current_time == 0
     assert engine.snapshot().next_sequence == 1
     assert engine.history == ()
+
+
+def test_schedule_returns_a_detached_event_payload():
+    engine = SimulationEngine()
+    engine.register("record", lambda event, _: None)
+    source = {"nested": {"values": [1, 2]}}
+    returned = engine.schedule(1, "record", source)
+
+    source["nested"]["values"].append(3)
+    returned.payload["nested"]["values"].append(4)
+
+    assert engine.pending_events[0].payload == {"nested": {"values": [1, 2]}}
+
+
+def test_handler_payload_mutation_does_not_rewrite_recorded_event():
+    engine = SimulationEngine()
+
+    def mutate_input(event, _):
+        event.payload["nested"]["values"].append("handler-change")
+
+    engine.register("mutate", mutate_input)
+    engine.schedule(1, "mutate", {"nested": {"values": ["original"]}})
+    returned = engine.step()
+
+    assert returned is not None
+    assert returned.payload == {"nested": {"values": ["original"]}}
+    assert engine.history[0].payload == {"nested": {"values": ["original"]}}
+
+
+def test_history_and_pending_event_reads_are_detached():
+    engine = SimulationEngine()
+    engine.register("record", lambda event, _: None)
+    engine.schedule(1, "record", {"nested": {"value": "queued"}})
+
+    pending = engine.pending_events
+    pending[0].payload["nested"]["value"] = "caller-change"
+    assert engine.pending_events[0].payload["nested"]["value"] == "queued"
+
+    engine.step()
+    history = engine.history
+    history[0].payload["nested"]["value"] = "caller-change"
+    assert engine.history[0].payload["nested"]["value"] == "queued"
