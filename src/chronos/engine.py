@@ -26,6 +26,13 @@ class EngineSnapshot:
     state: dict[str, Any]
     logical_clock_value: int
 
+    def __post_init__(self) -> None:
+        # Snapshots own their nested state and event payloads. This prevents
+        # source objects passed to the constructor from mutating a checkpoint.
+        object.__setattr__(self, "queue", copy.deepcopy(self.queue))
+        object.__setattr__(self, "history", copy.deepcopy(self.history))
+        object.__setattr__(self, "state", copy.deepcopy(self.state))
+
 
 class SimulationEngine:
     """Single-process deterministic scheduler with explicit hybrid integration boundaries."""
