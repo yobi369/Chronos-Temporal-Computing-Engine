@@ -362,7 +362,7 @@ footer {{ color: #53627a; font-size: .85rem; padding: 8px 2px; }}
 <header>
 <div class="eyebrow">Chronos · Portable experiment review</div>
 <h1>Experiment report</h1>
-<p class="muted">Chronos version {version} · {int(verification["artifact_count"])} bundled artifact(s)</p>
+<p class="muted">Chronos version {version} · {verification["artifact_count"]} bundled artifact(s)</p>
 <span class="status">Integrity and schema checks: PASS</span>
 </header>
 <section class="panel">
