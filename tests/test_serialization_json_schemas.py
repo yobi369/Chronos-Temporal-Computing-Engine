@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 from jsonschema import Draft202012Validator
 
@@ -13,7 +14,7 @@ SCHEMAS = Path(__file__).parents[1] / "docs" / "schemas"
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _schema(name: str) -> dict:
+def _schema(name: str) -> dict[str, Any]:
     document = json.loads((SCHEMAS / name).read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(document)
     return document
@@ -54,7 +55,7 @@ def test_snapshot_v2_schema_accepts_canonical_serialization():
 def test_timeline_continuation_v2_schema_accepts_golden_fixture():
     source = (
         FIXTURES / "timeline-continuation-v2-empty.json"
-    ).read_text(encoding="utf-8").rstrip("\\n")
+    ).read_text(encoding="utf-8").rstrip("\n")
     # Runtime parsing remains the semantic authority; JSON Schema checks the wire shape.
     timeline_continuation_from_json(source)
     _validate("timeline-continuation-v2.schema.json", source)
