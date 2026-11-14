@@ -142,8 +142,16 @@ A 1.0 candidate is blocked until all applicable items have evidence attached to 
 
 The scheduler, EventInput, EventLog, and EngineSnapshot now detach selected nested values at their construction or API boundaries. Focused regression tests cover caller-owned nested payloads/state for event inputs, event logs, and snapshots. This prevents mutation of the original constructor arguments from silently changing the captured record.
 
-This does not make the returned EventLog or EngineSnapshot object graphs deeply immutable: nested dictionaries/lists exposed by those records remain mutable. Treat captured records as read-only after construction. A future API design decision is required before 1.0: either private immutable representations with defensive accessors, or a documented mutable-record contract with copy-on-export. The latest change is awaiting the full CI matrix; no passing result is claimed yet.
+This does not make the returned EventLog or EngineSnapshot object graphs deeply immutable: nested dictionaries/lists exposed by those records remain mutable. Treat captured records as read-only after construction. A future API design decision is required before 1.0: either private immutable representations with defensive accessors, or a documented mutable-record contract with copy-on-export. The latest verified constructor-boundary state passed the full cross-platform CI matrix in run #179 (commit `cfff46e`). The remaining mutable-container exposure is an explicit API-design issue, not a claim of deep immutability.
 
 ## Scientific scope boundary
 
 The engine's software semantics and numerical methods must be evaluated as software and mathematics. Relativistic time dilation, quantum temporal effects, closed timelike curves, and physical time travel remain unimplemented research directions. No software milestone, test suite, benchmark, or market-readiness review establishes a physical theory.
+
+
+## Latest persistence and snapshot-validation verification (14 November 2026)
+
+- Commit `6f3bf8c` added persisted-continuation reader tests for invalid UTF-8, truncated JSON, and the configured byte limit.
+- Commit `dbcb644` hardened snapshot parsing against non-standard JSON numeric constants and excessive nesting. The first adversarial test attempt failed on three Python 3.11 runners because the test itself tried to serialize a deeply nested Python object with `json.dumps`; the product parser was not the source of that failure.
+- Commit `cfff46e` corrected the fixture to construct the nested JSON text directly. CI run #179 then passed all 9 Ubuntu/macOS/Windows × Python 3.11/3.12/3.13 jobs. The Ubuntu/Python 3.12 job reported 121 passed and 87.16% coverage; lint, mypy, wheel/sdist build and clean wheel import, and benchmark smoke all passed. The three Python 3.12 hosted-runner benchmark reproductions also passed.
+- The next continuation-persistence increment adds direct tests for duplicate JSON keys, excessive nesting, invalid read-limit arguments, and atomic-replace failure preserving the previous committed file. Its CI result is pending until the new commit completes the matrix.

@@ -313,3 +313,45 @@ def test_persisted_continuation_enforces_read_limit(tmp_path):
     target.write_text("{}" * 20, encoding="utf-8")
     with pytest.raises(EventLogError, match="read limit"):
         read_timeline_continuation(target, max_bytes=10)
+
+
+
+def test_continuation_rejects_duplicate_json_object_keys():
+    with pytest.raises(EventLogError, match="duplicate JSON object key"):
+        timeline_continuation_from_json(
+            '{"schema_version":2,"schema_version":2}'
+        )
+
+
+def test_continuation_rejects_excessive_json_nesting_cleanly():
+    source = "[" * 1500 + "0" + "]" * 1500
+    with pytest.raises(EventLogError, match="nesting depth"):
+        timeline_continuation_from_json(source)
+
+
+@pytest.mark.parametrize("max_bytes", [0, -1, True, 1.5])
+def test_continuation_read_limit_requires_a_positive_integer(tmp_path, max_bytes):
+    from chronos.continuation import read_timeline_continuation
+
+    with pytest.raises(ValueError, match="positive integer"):
+        read_timeline_continuation(
+            tmp_path / "not-opened.json", max_bytes=max_bytes
+        )
+
+
+def test_failed_atomic_replace_preserves_existing_continuation(tmp_path, monkeypatch):
+    import chronos.continuation as continuation_module
+
+    _, _, record = build_continuation()
+    target = tmp_path / "branch.json"
+    target.write_text("previous committed continuation", encoding="utf-8")
+
+    def fail_replace(source, destination):
+        raise OSError("simulated continuation replace failure")
+
+    monkeypatch.setattr(continuation_module.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="simulated continuation replace failure"):
+        write_timeline_continuation(target, record)
+
+    assert target.read_text(encoding="utf-8") == "previous committed continuation"
+    assert list(tmp_path.glob(".branch.json.*.tmp")) == []
