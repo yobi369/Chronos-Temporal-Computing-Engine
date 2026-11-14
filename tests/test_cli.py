@@ -167,7 +167,6 @@ def test_report_creation_refuses_to_overwrite_existing_directory(tmp_path, capsy
     assert "already exists" in capsys.readouterr().err
 
 
-
 def _write_ed25519_keys(tmp_path, name="reviewer"):
     crypto = pytest.importorskip("cryptography.hazmat.primitives.asymmetric.ed25519")
     from cryptography.hazmat.primitives import serialization
@@ -286,3 +285,55 @@ def test_unsigned_report_remains_compatible(tmp_path, capsys):
     assert result["integrity_verified"] is True
     assert result["signature_valid"] is False
     assert result["trust_status"] == "unsigned"
+
+
+def test_render_report_creates_offline_html_after_verification(tmp_path, capsys):
+    event_log = _build_event_log(tmp_path)
+    report_dir = tmp_path / "review"
+    assert main([
+        "create-report", "--output-dir", str(report_dir),
+        "--event-log", str(event_log),
+    ]) == 0
+    capsys.readouterr()
+
+    assert main(["render-report", str(report_dir)]) == 0
+    output = capsys.readouterr()
+    rendered = report_dir / "index.html"
+    document = rendered.read_text(encoding="utf-8")
+    assert rendered.is_file()
+    assert "Integrity and schema checks: PASS" in document
+    assert "Unsigned report" in document
+    assert "Artifact 1: event_log" in document
+    assert "does not load remote scripts" in document
+    assert "<script" not in document
+    assert "Rendered reviewer report:" in output.out
+
+
+def test_render_report_escapes_untrusted_filenames(tmp_path):
+    original = _build_event_log(tmp_path)
+    hostile = tmp_path / '<img src=x onerror="alert(1)">.json'
+    hostile.write_bytes(original.read_bytes())
+    report_dir = tmp_path / "escaped-review"
+    from chronos.cli import create_experiment_report
+
+    create_experiment_report(report_dir, event_logs=[hostile])
+    from chronos.cli import render_experiment_report
+
+    output = render_experiment_report(report_dir).read_text(encoding="utf-8")
+    assert '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;.json' in output
+    assert '<img src=x onerror="alert(1)">' not in output
+    assert "<script" not in output
+
+
+def test_render_report_refuses_tampered_bundle_without_writing_html(tmp_path):
+    event_log = _build_event_log(tmp_path)
+    report_dir = tmp_path / "tampered-render"
+    from chronos.cli import create_experiment_report, render_experiment_report
+
+    create_experiment_report(report_dir, event_logs=[event_log])
+    artifact = next((report_dir / "artifacts").iterdir())
+    artifact.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(Exception, match="SHA-256 digest mismatch"):
+        render_experiment_report(report_dir)
+    assert not (report_dir / "index.html").exists()

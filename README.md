@@ -26,13 +26,14 @@ Chronos is an early-stage research software project for deterministic discrete-e
 
 ## Command-line interface
 
-The chronos CLI validates and summarizes persisted event logs and timeline continuations without printing state or payload values. It can also package validated artifacts into a portable report bundle and verify that bundle after transfer.
+The chronos CLI validates and summarizes persisted event logs and timeline continuations without printing state or payload values. It can package validated artifacts into a portable report bundle, verify that bundle after transfer, and render a verified report as a self-contained offline HTML reviewer document.
 
     chronos --version
     chronos inspect-event-log path/to/event-log.json --json
     chronos inspect-continuation path/to/continuation.json --json
     chronos create-report --output-dir review-bundle --event-log path/to/event-log.json
     chronos verify-report review-bundle
+    chronos render-report review-bundle
 
 Use python -m chronos when invoking it from an environment where the console script is not on PATH. See [docs/cli.md](docs/cli.md) and [docs/experiment-reports.md](docs/experiment-reports.md) for commands, report structure, and verification boundaries.
 

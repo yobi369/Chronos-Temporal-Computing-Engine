@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import json
 import os
 import shutil
@@ -208,6 +209,7 @@ def verify_experiment_report(
             or len(PurePosixPath(relative_name).parts) != 2
         ):
             raise EventLogError(f"report artifacts[{index}] has an unsafe artifact path")
+
         if not isinstance(expected_hash, str) or len(expected_hash) != 64:
             raise EventLogError(f"report artifacts[{index}] has an invalid SHA-256 digest")
         if not isinstance(expected_summary, dict):
@@ -254,6 +256,137 @@ def verify_experiment_report(
             "No simulation replay, identity proof, authorization, revocation, or trusted timestamp is provided."
         ),
     }
+
+
+def render_experiment_report(
+    report_dir: str | Path,
+    *,
+    output: str | Path | None = None,
+    trusted_public_key: str | Path | None = None,
+) -> Path:
+    """Render a verified report as a self-contained, offline HTML reviewer document."""
+    root = Path(report_dir)
+    verification = verify_experiment_report(
+        root,
+        trusted_public_key=trusted_public_key,
+    )
+    manifest_path = root / REPORT_FILENAME
+    manifest: Any = json.loads(manifest_path.read_text(encoding="utf-8"))
+    trust_status = str(verification["trust_status"])
+    if trust_status == "trusted":
+        signature_label = "Signature valid · trusted key match"
+    elif trust_status == "untrusted":
+        signature_label = "Signature valid · signer not locally trusted"
+    else:
+        signature_label = "Unsigned report"
+
+    artifact_sections: list[str] = []
+    for index, artifact in enumerate(manifest["artifacts"], start=1):
+        summary = json.dumps(artifact["summary"], indent=2, sort_keys=True)
+        artifact_sections.append(
+            "<section class=\"artifact\">"
+            f"<h3>Artifact {index}: {html.escape(str(artifact.get('kind', 'unknown')))}</h3>"
+            "<dl>"
+            f"<dt>Original filename</dt><dd>{html.escape(str(artifact.get('original_name', 'unknown')))}</dd>"
+            f"<dt>Bundle path</dt><dd><code>{html.escape(str(artifact.get('file', 'unknown')))}</code></dd>"
+            f"<dt>SHA-256</dt><dd class=\"hash\">{html.escape(str(artifact.get('sha256', 'unknown')))}</dd>"
+            "</dl>"
+            f"<details><summary>Validated metadata</summary><pre>{html.escape(summary)}</pre></details>"
+            "</section>"
+        )
+
+    version = html.escape(str(manifest.get("chronos_version", "unknown")))
+    key_id = verification.get("key_id")
+    key_detail = (
+        f"<p class=\"muted\">Signer key ID: <code>{html.escape(str(key_id))}</code></p>"
+        if key_id is not None
+        else ""
+    )
+    trust_note = html.escape(str(verification["trust_note"]))
+    scope = html.escape(str(verification["verification_scope"]))
+    document = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>Chronos experiment review</title>
+<style>
+:root {{ color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #172033; background: #f4f6fa; }}
+body {{ margin: 0; line-height: 1.55; }}
+main {{ max-width: 960px; margin: 0 auto; padding: 42px 22px 64px; }}
+header, .panel, .artifact {{ background: #fff; border: 1px solid #dce2eb; border-radius: 14px; padding: 22px; margin: 0 0 18px; }}
+.eyebrow {{ color: #53627a; font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }}
+h1 {{ margin: 8px 0; font-size: clamp(1.8rem, 5vw, 2.7rem); letter-spacing: -.04em; }}
+h2 {{ margin: 0 0 14px; font-size: 1.25rem; }}
+h3 {{ margin: 0 0 12px; font-size: 1.05rem; }}
+p {{ margin: 8px 0; }}
+.status {{ display: inline-block; border-radius: 999px; background: #edf2f8; padding: 5px 11px; font-size: .9rem; font-weight: 700; }}
+dl {{ display: grid; grid-template-columns: minmax(110px, 160px) minmax(0, 1fr); gap: 7px 16px; margin: 14px 0; }}
+dt {{ color: #53627a; }} dd {{ margin: 0; overflow-wrap: anywhere; }}
+.hash, code, pre {{ font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }}
+.hash {{ overflow-wrap: anywhere; font-size: .85rem; }}
+pre {{ overflow-x: auto; background: #f5f7fa; padding: 14px; border-radius: 8px; font-size: .82rem; }}
+summary {{ cursor: pointer; font-weight: 650; }}
+.muted {{ color: #53627a; font-size: .9rem; }}
+.notice {{ border-left: 4px solid #8795aa; padding-left: 14px; }}
+footer {{ color: #53627a; font-size: .85rem; padding: 8px 2px; }}
+@media (max-width: 560px) {{ main {{ padding: 20px 12px 40px; }} dl {{ grid-template-columns: 1fr; gap: 2px; }} dd {{ margin-bottom: 9px; }} }}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div class="eyebrow">Chronos · Portable experiment review</div>
+<h1>Experiment report</h1>
+<p class="muted">Chronos version {version} · {int(verification["artifact_count"])} bundled artifact(s)</p>
+<span class="status">Integrity and schema checks: PASS</span>
+</header>
+<section class="panel">
+<h2>Signature and trust</h2>
+<p><strong>{html.escape(signature_label)}</strong></p>
+{key_detail}
+<p class="muted">{trust_note}</p>
+</section>
+<section class="panel">
+<h2>Included artifacts</h2>
+{''.join(artifact_sections)}
+</section>
+<section class="panel">
+<h2>What this report verifies</h2>
+<p>{scope}</p>
+<p class="notice">A successful report check is not a simulation replay, scientific validation, proof of authorship, identity, authorization, revocation status, or trusted timestamp. A valid signature is trusted only when its public key matches the key explicitly supplied by the reviewer.</p>
+</section>
+<footer>Generated locally by Chronos. This file is self-contained and does not load remote scripts, fonts, images, or services.</footer>
+</main>
+</body>
+</html>
+"""
+    destination = Path(output) if output is not None else root / "index.html"
+    protected_paths = {
+        manifest_path.resolve(),
+        (root / "signature.json").resolve(),
+        *[(root / str(item["file"])).resolve() for item in manifest["artifacts"]],
+    }
+    if destination.resolve() in protected_paths:
+        raise EventLogError("HTML output path must not overwrite a report manifest or artifact")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.",
+        suffix=".tmp",
+        dir=destination.parent,
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(document)
+        os.replace(temporary_name, destination)
+    except Exception:
+        try:
+            Path(temporary_name).unlink()
+        except FileNotFoundError:
+            pass
+        raise
+    return destination
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -305,6 +438,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     verify.add_argument("--json", action="store_true", dest="json_output")
 
+    render = commands.add_parser(
+        "render-report",
+        help="Render a verified report as a self-contained offline HTML document.",
+    )
+    render.add_argument("report_dir", type=Path)
+    render.add_argument("--output", type=Path, help="HTML output path (default: REPORT_DIR/index.html).")
+    render.add_argument(
+        "--trusted-public-key",
+        type=Path,
+        help="PEM Ed25519 public key for an explicit local trust decision.",
+    )
+
     return parser
 
 
@@ -328,6 +473,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "verify-report":
             summary = verify_experiment_report(args.report_dir, trusted_public_key=args.trusted_public_key)
+        elif args.command == "render-report":
+            rendered_path = render_experiment_report(
+                args.report_dir,
+                output=args.output,
+                trusted_public_key=args.trusted_public_key,
+            )
+            print(f"Rendered reviewer report: {rendered_path}")
+            print("Integrity and schema checks: PASS")
+            rendered_verification = verify_experiment_report(
+                args.report_dir,
+                trusted_public_key=args.trusted_public_key,
+            )
+            print(f"Signature valid: {rendered_verification['signature_valid']}")
+            print(f"Trust status: {rendered_verification['trust_status']}")
+            return 0
         else:  # pragma: no cover - argparse requires a subcommand
             parser.error("a command is required")
             return 2
