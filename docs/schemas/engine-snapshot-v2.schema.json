@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/yobi369/Chronos-Temporal-Computing-Engine/blob/main/docs/schemas/engine-snapshot-v2.schema.json",
+  "$id": "urn:chronos:schema:engine-snapshot-v2",
   "title": "Chronos engine snapshot schema v2",
   "description": "Wire-format contract for version-2 engine snapshots. Flat version-1 snapshots are accepted by the runtime migration path but are not represented by this schema.",
   "type": "object",
