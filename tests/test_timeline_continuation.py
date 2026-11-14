@@ -322,7 +322,7 @@ def test_continuation_rejects_duplicate_json_object_keys():
 
 
 def test_continuation_rejects_excessive_json_nesting_cleanly():
-    source = '{"nested":' + "[" * 1500 + "0" + "]" * 1500 + "}"
+    source = '{"schema_version":2,"nested":' + "[" * 10000 + "0" + "]" * 10000 + "}"
     with pytest.raises(EventLogError, match="nesting depth"):
         timeline_continuation_from_json(source)
 
