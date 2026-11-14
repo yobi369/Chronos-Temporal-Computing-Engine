@@ -7,7 +7,7 @@ import getpass
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from chronos.event_log import EventLogError
 
@@ -50,9 +50,12 @@ def _read(path: str | Path) -> bytes:
 
 def _raw(key: Any) -> bytes:
     serialization, _, _ = _crypto()
-    return key.public_bytes(
-        serialization.Encoding.Raw,
-        serialization.PublicFormat.Raw,
+    return cast(
+        bytes,
+        key.public_bytes(
+            serialization.Encoding.Raw,
+            serialization.PublicFormat.Raw,
+        ),
     )
 
 
