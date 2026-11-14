@@ -109,3 +109,58 @@ def test_cli_reports_invalid_continuation_with_nonzero_exit(tmp_path, capsys):
     output = capsys.readouterr()
     assert "chronos:" in output.err
     assert output.out == ""
+
+
+def test_create_and_verify_portable_report_with_both_artifact_types(tmp_path, capsys):
+    event_log = _build_event_log(tmp_path)
+    continuation = _build_continuation(tmp_path)
+    report_dir = tmp_path / "customer-review"
+
+    assert main([
+        "create-report",
+        "--output-dir", str(report_dir),
+        "--event-log", str(event_log),
+        "--continuation", str(continuation),
+    ]) == 0
+    created = capsys.readouterr()
+    assert "Artifacts included: 2" in created.out
+
+    report = json.loads((report_dir / "report.json").read_text(encoding="utf-8"))
+    assert report["format"] == "chronos-experiment-report"
+    assert len(report["artifacts"]) == 2
+    assert all((report_dir / item["file"]).is_file() for item in report["artifacts"])
+    assert "amount" not in json.dumps(report)
+
+    assert main(["verify-report", str(report_dir), "--json"]) == 0
+    verified = json.loads(capsys.readouterr().out)
+    assert verified["verified"] is True
+    assert verified["artifact_count"] == 2
+    assert verified["event_log_count"] == 1
+    assert verified["continuation_count"] == 1
+
+
+def test_report_verification_detects_artifact_tampering(tmp_path, capsys):
+    event_log = _build_event_log(tmp_path)
+    report_dir = tmp_path / "tamper-check"
+    assert main([
+        "create-report", "--output-dir", str(report_dir),
+        "--event-log", str(event_log),
+    ]) == 0
+    capsys.readouterr()
+
+    artifact = next((report_dir / "artifacts").iterdir())
+    artifact.write_text("{}\n", encoding="utf-8")
+    assert main(["verify-report", str(report_dir)]) == 2
+    assert "SHA-256 digest mismatch" in capsys.readouterr().err
+
+
+def test_report_creation_refuses_to_overwrite_existing_directory(tmp_path, capsys):
+    event_log = _build_event_log(tmp_path)
+    report_dir = tmp_path / "existing"
+    report_dir.mkdir()
+
+    assert main([
+        "create-report", "--output-dir", str(report_dir),
+        "--event-log", str(event_log),
+    ]) == 2
+    assert "already exists" in capsys.readouterr().err
