@@ -300,7 +300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "create-report":
         print(f"Created Chronos experiment report: {args.output_dir}")
-        print(f"Artifacts included: {len(summary['artifacts'])}")
+        print(f"Artifacts included: {len(args.event_log) + len(args.continuation)}")
     elif args.command == "verify-report" and not args.json_output:
         print(f"PASS: verified {summary['artifact_count']} report artifacts")
         print(str(summary["verification_scope"]))
