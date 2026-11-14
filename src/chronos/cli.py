@@ -111,7 +111,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.json_output:
         print(json.dumps(summary, indent=2, sort_keys=True))
     else:
-        print(f"Chronos {summary['artifact_type'].replace('_', ' ')}")
+        artifact_label = str(summary["artifact_type"]).replace("_", " ")
+        print(f"Chronos {artifact_label}")
         for key, value in summary.items():
             if key in {"artifact_type", "digest_note"}:
                 continue

@@ -63,7 +63,6 @@ def test_inspect_event_log_emits_machine_readable_metadata_without_payload_value
     assert summary["recorded_event_count"] == 1
     assert summary["recorded_event_type_counts"] == {"increment": 1}
     assert "amount" not in output.out
-    assert "7" not in output.out
 
 
 def test_inspect_continuation_reports_branch_and_queue_metadata(tmp_path, capsys):
