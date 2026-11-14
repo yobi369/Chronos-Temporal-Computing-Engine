@@ -30,7 +30,32 @@ Verify the saved files in a separate process:
 The verifier loads each file from disk, validates its continuation record,
 reconstructs the branch using the declared deterministic handlers, checks the
 expected scenario state, and prints an explicit PASS result and state digest.
-It requires no network access, external service, or paid infrastructure.
+
+## Package a reviewer report
+
+Once the continuation files have been generated, package both into a portable
+report directory:
+
+    chronos create-report \
+      --output-dir investor-review \
+      --continuation chronos-artifacts/normal-supply.continuation.json \
+      --continuation chronos-artifacts/disrupted-supply.continuation.json
+
+Verify the report from a separate process:
+
+    chronos verify-report investor-review
+    chronos verify-report investor-review --json
+
+Share the complete `investor-review/` directory with the reviewer. It contains
+the original validated continuation artifacts, a metadata summary, and
+SHA-256 digests. The verifier checks artifact integrity and schema validity;
+it does not replay the simulation. To independently reproduce the scenario
+outcomes, the reviewer should also run the example's fresh-process replay
+command above. See [portable experiment reports](experiment-reports.md) for
+the report format and its verification boundaries.
+
+The workflow is local and requires no network access, external service, or
+paid infrastructure.
 
 ## Model
 

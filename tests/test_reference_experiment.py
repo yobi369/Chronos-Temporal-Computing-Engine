@@ -75,3 +75,45 @@ def test_reference_experiment_exports_and_verifies_artifacts_in_fresh_processes(
 
     assert "PASS normal-supply: fresh-process replay verified" in verified.stdout
     assert "PASS disrupted-supply: fresh-process replay verified" in verified.stdout
+
+    report_dir = tmp_path / "review-bundle"
+    created_report = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "chronos",
+            "create-report",
+            "--output-dir",
+            str(report_dir),
+            "--continuation",
+            str(tmp_path / "normal-supply.continuation.json"),
+            "--continuation",
+            str(tmp_path / "disrupted-supply.continuation.json"),
+        ],
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert "Artifacts included: 2" in created_report.stdout
+    assert (report_dir / "report.json").is_file()
+    assert len(list((report_dir / "artifacts").glob("*.json"))) == 2
+
+    verified_report = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "chronos",
+            "verify-report",
+            str(report_dir),
+            "--json",
+        ],
+        cwd=repository_root,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert '"verified": true' in verified_report.stdout
+    assert '"artifact_count": 2' in verified_report.stdout
