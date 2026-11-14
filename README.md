@@ -24,6 +24,16 @@ Chronos is an early-stage research software project for deterministic discrete-e
 - HMAC-authenticated distributed worker messaging with durable SQLite inbox/outbox, retries and deduplication.
 - Process-termination checkpoint recovery tests.
 
+## Command-line interface
+
+The read-only chronos CLI validates and summarizes persisted event logs and timeline continuations. It supports human-readable output and machine-readable JSON without printing state or payload values.
+
+    chronos --version
+    chronos inspect-event-log path/to/event-log.json --json
+    chronos inspect-continuation path/to/continuation.json --json
+
+Use python -m chronos when invoking it from an environment where the console script is not on PATH. See [docs/cli.md](docs/cli.md) for installation, output fields, and exit behavior.
+
 ## Development
 
     python -m pip install -e '.[dev]'
