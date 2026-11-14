@@ -99,3 +99,13 @@ def test_module_version_command():
         timeout=15,
     )
     assert completed.stdout.strip() == "chronos 0.5.0"
+
+
+def test_cli_reports_invalid_continuation_with_nonzero_exit(tmp_path, capsys):
+    path = tmp_path / "broken-continuation.json"
+    path.write_text('{"schema_version": 2}', encoding="utf-8")
+
+    assert main(["inspect-continuation", str(path), "--json"]) == 2
+    output = capsys.readouterr()
+    assert "chronos:" in output.err
+    assert output.out == ""
