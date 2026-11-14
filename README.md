@@ -1,52 +1,65 @@
-# Chronos — Temporal Computing Engine
+# Chronos Temporal Computing Engine
 
-Chronos is an experimental, deterministic temporal-computing laboratory for event-driven systems, causal ordering, branching histories, counterfactual simulation, and reproducible experiments.
+Chronos is an early-stage research software project for deterministic discrete-event simulation, causal event provenance, and branching logical timelines.
 
-The project treats speculative temporal ideas as computational models, not claims that physical time can be manipulated.
+**Commercial product direction:** Chronos is being developed toward a Python-native environment for reproducible causal experiments, controlled timeline branching, and replay verification. See the [commercial product brief](docs/commercial-product-brief.md) for the proposed first offering, target users, validation programme, and launch gates. This is a product direction, not a claim that a polished commercial workbench or production service is already available.
 
-## Current status
+## Implemented capabilities
 
-Early research prototype. The initial implementation provides:
+- Deterministic discrete-event scheduling with stable time/sequence ordering.
+- Event identity, logical time, causal-parent references, Lamport/vector clocks and declared causal graph.
+- In-process snapshots and isolated timeline forks.
+- Versioned snapshot JSON (v2) with documented in-memory migration from legacy v1.
+- Canonical event-log JSON schemas v1, v2 and v3, with strict parsing and explicit version migrations.
+- Schema-v3 initial-state capture, replay from recorded driver inputs, observed-history comparison and SHA-256 final-state digest checks.
+- Bounded local event-log persistence using temporary-file writes, fsync and atomic replacement.
+- Independent schema-v1/v2 fork continuation records with parent-checkpoint digests, branch-local inputs, partial-run pending queues, persistent replay, and final snapshot verification.
+- Payload field contracts, malformed-file rejection, golden serialization fixtures and fresh-process replay tests.
+- Hypothesis property tests and differential checks against a separate sorted-list reference scheduler.
+- Finite-trace temporal operators and bounded explicit-state model checking.
+- Reproducible experiment manifests and paired benchmark harness with cross-platform runner artifacts.
+- Hybrid discrete/continuous RK4 integration with event-boundary stopping and bisection root localization.
+- Conservative interval-time scheduling and seeded Monte Carlo event-order propagation.
+- Symbolic state predicates and bounded invariant checking.
+- HMAC-authenticated distributed worker messaging with durable SQLite inbox/outbox, retries and deduplication.
+- Process-termination checkpoint recovery tests.
 
-- A deterministic discrete-event scheduler with stable tie-breaking.
-- Explicit event identity, logical time, and declared causal-parent references.
-- Lamport and vector clocks for logical ordering and distributed happens-before analysis.
-- A causal provenance graph with ancestor and descendant queries.
-- In-process timeline snapshots and isolated forks.
-- Event-log consistency validation.
-- Tests for ordering, causal provenance, bounded execution, and branch isolation.
+## Command-line interface
 
-Not implemented: persistent replay, relativistic spacetime simulation, quantum time models, physical time travel, distributed consensus, or production persistence. These require separate mathematical specifications and validation.
+The chronos CLI validates and summarizes persisted event logs and timeline continuations without printing state or payload values. It can package validated artifacts into a portable report bundle, verify that bundle after transfer, and render a verified report as a self-contained offline HTML reviewer document.
 
-## Quick start
+    chronos --version
+    chronos inspect-event-log path/to/event-log.json --json
+    chronos inspect-continuation path/to/continuation.json --json
+    chronos create-report --output-dir review-bundle --event-log path/to/event-log.json
+    chronos verify-report review-bundle
+    chronos render-report review-bundle
 
-Requires Python 3.11+.
+Use python -m chronos when invoking it from an environment where the console script is not on PATH. See [docs/cli.md](docs/cli.md) and [docs/experiment-reports.md](docs/experiment-reports.md) for commands, report structure, and verification boundaries.
 
-    python -m pip install -e ".[dev]"
-    pytest
+## Development
 
-Run the example:
+    python -m pip install -e '.[dev]'
+    ruff check .
+    mypy src
+    pytest --cov=chronos --cov-report=term-missing --cov-fail-under=70
 
-    python examples/branching_timeline.py
+Run the benchmark:
 
-## Design principles
+    python benchmarks/run_benchmarks.py --events 10000 --warmups 2 --repeats 7
 
-1. Determinism: identical inputs and initial state produce identical event traces.
-2. Explicit causality: causal links are declared and validated, not inferred from wall-clock timestamps.
-3. Branch isolation: a fork explores an alternative future without mutating its parent.
-4. Reproducibility: experiments expose their inputs, event traces, and configuration.
-5. Scientific honesty: model assumptions and limits are documented; simulation output is not evidence of a physical phenomenon.
+See docs/reference-experiment.md for a replay-verified counterfactual supply-resilience workflow.
 
-## Architecture
+See [machine-readable serialization schemas](docs/schemas/README.md), docs/architecture.md, docs/event-logs-and-replay.md, docs/timeline-continuations.md, docs/event-log-migration.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md, docs/validation.md, docs/research-roadmap.md, docs/market-readiness.md, and docs/competitive-positioning.md.
 
-- `chronos.clock`: logical clock primitives.
-- `chronos.events`: immutable event records.
-- `chronos.engine`: deterministic discrete-event execution.
-- `chronos.timeline`: forkable in-process snapshots.
-- `chronos.validation`: event-log consistency checks.
+## Important limitations
 
-See [docs/architecture.md](docs/architecture.md), [docs/temporal-model.md](docs/temporal-model.md), and [docs/validation.md](docs/validation.md).
+Schema-v1 and schema-v2 event logs do not contain an initial-state record and therefore replay from an empty state. Migrating a historical non-empty run to v3 requires the exact original pre-dispatch state; Chronos cannot infer it. Replay requires deterministic handlers and explicitly recorded inputs. Hidden network, clock, random, environment, filesystem and global-state dependencies must be captured or controlled. Handler rollback cannot undo external effects, and replay is not a sandbox for untrusted handlers. Snapshots omit handlers. Digests are reproducibility checksums, not signatures or tamper-proof audit evidence. Event-log persistence is a bounded local single-writer file protocol, not a distributed event store.
+
+Temporal evaluation uses finite-trace semantics; symbolic checking is explicit-state and bounded. Hybrid root localization detects sign changes only and rounds roots up to integer event ticks. Interval probability estimates assume independent uniform timing errors. Worker handlers are at-least-once and must be idempotent; HMAC does not encrypt traffic, so configure TLS for untrusted networks. The reference scheduler and benchmark are software baselines, not universal performance claims.
+
+Chronos does not implement physical time travel, relativistic time manipulation, quantum temporal effects, or closed timelike curves. Such topics remain unimplemented research directions pending precise mathematical models and independent validation.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+Apache-2.0. See LICENSE.
