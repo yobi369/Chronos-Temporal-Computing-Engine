@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yobi369/Chronos-Temporal-Computing-Engine/blob/main/docs/schemas/timeline-continuation-v2.schema.json",
+  "title": "Chronos timeline continuation schema v2",
+  "description": "Wire-format contract for schema-v2 event-boundary timeline continuations. Continuation schema versions are independent of event-log and snapshot schema versions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "parent_timeline_id",
+    "timeline_id",
+    "checkpoint",
+    "parent_history_length",
+    "branch_inputs",
+    "events",
+    "parent_checkpoint_digest",
+    "parent_history_digest",
+    "parent_state_digest",
+    "final_state_digest",
+    "final_snapshot_digest",
+    "pending_events"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "parent_timeline_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timeline_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checkpoint": {
+      "$ref": "engine-snapshot-v2.schema.json"
+    },
+    "parent_history_length": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "branch_inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/eventInput"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    },
+    "parent_checkpoint_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "parent_history_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "parent_state_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "final_state_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "final_snapshot_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "pending_events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "jsonObject": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "eventInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "time",
+        "event_type",
+        "payload",
+        "parent_event_id"
+      ],
+      "properties": {
+        "time": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "$ref": "#/$defs/jsonObject"
+        },
+        "parent_event_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "time",
+        "sequence",
+        "event_type",
+        "payload",
+        "parent_event_id"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "time": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "$ref": "#/$defs/jsonObject"
+        },
+        "parent_event_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
