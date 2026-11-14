@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yobi369/Chronos-Temporal-Computing-Engine/blob/main/docs/schemas/event-log-v3.schema.json",
+  "title": "Chronos event log schema v3",
+  "description": "Wire-format contract for event-log schema version 3. Chronos canonical JSON rules are documented separately; JSON Schema does not define digest canonicalization.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "timeline_id",
+    "initial_events",
+    "events",
+    "final_state_digest",
+    "payload_schemas",
+    "initial_state"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 3
+    },
+    "timeline_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "initial_events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/eventInput"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    },
+    "final_state_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "payload_schemas": {
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/payloadSchema"
+      }
+    },
+    "initial_state": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "jsonObject": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "eventInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "time",
+        "event_type",
+        "payload",
+        "parent_event_id"
+      ],
+      "properties": {
+        "time": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "$ref": "#/$defs/jsonObject"
+        },
+        "parent_event_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "time",
+        "sequence",
+        "event_type",
+        "payload",
+        "parent_event_id"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "time": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "$ref": "#/$defs/jsonObject"
+        },
+        "parent_event_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "payloadSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "optional",
+        "allow_additional_properties"
+      ],
+      "properties": {
+        "required": {
+          "$ref": "#/$defs/payloadPropertyTypes"
+        },
+        "optional": {
+          "$ref": "#/$defs/payloadPropertyTypes"
+        },
+        "allow_additional_properties": {
+          "type": "boolean"
+        }
+      }
+    },
+    "payloadPropertyTypes": {
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "enum": [
+          "null",
+          "boolean",
+          "integer",
+          "number",
+          "string",
+          "array",
+          "object"
+        ]
+      }
+    }
+  }
+}
