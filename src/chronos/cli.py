@@ -309,19 +309,38 @@ def render_experiment_report(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy"
+ content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <title>Chronos experiment review</title>
 <style>
-:root {{ color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #172033; background: #f4f6fa; }}
+:root {{
+ color-scheme: light;
+ font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+ color: #172033;
+ background: #f4f6fa;
+}}
 body {{ margin: 0; line-height: 1.55; }}
 main {{ max-width: 960px; margin: 0 auto; padding: 42px 22px 64px; }}
-header, .panel, .artifact {{ background: #fff; border: 1px solid #dce2eb; border-radius: 14px; padding: 22px; margin: 0 0 18px; }}
+header, .panel, .artifact {{
+ background: #fff;
+ border: 1px solid #dce2eb;
+ border-radius: 14px;
+ padding: 22px;
+ margin: 0 0 18px;
+}}
 .eyebrow {{ color: #53627a; font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }}
 h1 {{ margin: 8px 0; font-size: clamp(1.8rem, 5vw, 2.7rem); letter-spacing: -.04em; }}
 h2 {{ margin: 0 0 14px; font-size: 1.25rem; }}
 h3 {{ margin: 0 0 12px; font-size: 1.05rem; }}
 p {{ margin: 8px 0; }}
-.status {{ display: inline-block; border-radius: 999px; background: #edf2f8; padding: 5px 11px; font-size: .9rem; font-weight: 700; }}
+.status {{
+ display: inline-block;
+ border-radius: 999px;
+ background: #edf2f8;
+ padding: 5px 11px;
+ font-size: .9rem;
+ font-weight: 700;
+}}
 dl {{ display: grid; grid-template-columns: minmax(110px, 160px) minmax(0, 1fr); gap: 7px 16px; margin: 14px 0; }}
 dt {{ color: #53627a; }} dd {{ margin: 0; overflow-wrap: anywhere; }}
 .hash, code, pre {{ font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }}
@@ -331,7 +350,11 @@ summary {{ cursor: pointer; font-weight: 650; }}
 .muted {{ color: #53627a; font-size: .9rem; }}
 .notice {{ border-left: 4px solid #8795aa; padding-left: 14px; }}
 footer {{ color: #53627a; font-size: .85rem; padding: 8px 2px; }}
-@media (max-width: 560px) {{ main {{ padding: 20px 12px 40px; }} dl {{ grid-template-columns: 1fr; gap: 2px; }} dd {{ margin-bottom: 9px; }} }}
+@media (max-width: 560px) {{
+ main {{ padding: 20px 12px 40px; }}
+ dl {{ grid-template-columns: 1fr; gap: 2px; }}
+ dd {{ margin-bottom: 9px; }}
+}}
 </style>
 </head>
 <body>
@@ -355,9 +378,13 @@ footer {{ color: #53627a; font-size: .85rem; padding: 8px 2px; }}
 <section class="panel">
 <h2>What this report verifies</h2>
 <p>{scope}</p>
-<p class="notice">A successful report check is not a simulation replay, scientific validation, proof of authorship, identity, authorization, revocation status, or trusted timestamp. A valid signature is trusted only when its public key matches the key explicitly supplied by the reviewer.</p>
+<p class="notice">A successful report check is not a simulation replay, scientific validation,
+proof of authorship, identity, authorization, revocation status, or trusted timestamp.
+A valid signature is trusted only when its public key matches the key explicitly
+supplied by the reviewer.</p>
 </section>
-<footer>Generated locally by Chronos. This file is self-contained and does not load remote scripts, fonts, images, or services.</footer>
+<footer>Generated locally by Chronos. This file is self-contained and does not load
+remote scripts, fonts, images, or services.</footer>
 </main>
 </body>
 </html>

@@ -12,7 +12,7 @@ from chronos import (
     write_event_log,
 )
 from chronos.cli import main
-from chronos.event_log import EventLog
+from chronos.event_log import EventLog, EventLogError
 
 
 def _build_event_log(tmp_path):
@@ -334,6 +334,6 @@ def test_render_report_refuses_tampered_bundle_without_writing_html(tmp_path):
     artifact = next((report_dir / "artifacts").iterdir())
     artifact.write_text("{}\n", encoding="utf-8")
 
-    with pytest.raises(Exception, match="SHA-256 digest mismatch"):
+    with pytest.raises(EventLogError, match="SHA-256 digest mismatch"):
         render_experiment_report(report_dir)
     assert not (report_dir / "index.html").exists()
