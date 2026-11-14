@@ -10,7 +10,7 @@ SIGNATURE_FORMAT = "chronos-report-signature"
 DOMAIN_SEPARATOR = b"CHRONOS-REPORT-SIGNATURE\x00v1\x00"
 _FIELDS = {"format", "version", "algorithm", "key_id", "public_key", "report_sha256", "signature"}
 
-def _crypto():
+def _crypto() -> tuple[Any, Any, Any]:
     try:
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
@@ -18,18 +18,18 @@ def _crypto():
         raise EventLogError("Ed25519 support requires: pip install 'chronos-temporal-computing-engine[signing]'") from exc
     return serialization, Ed25519PrivateKey, Ed25519PublicKey
 
-def _read(path):
+def _read(path: str | Path) -> bytes:
     try: return Path(path).read_bytes()
     except OSError as exc: raise EventLogError(f"cannot read key file {path}: {exc}") from exc
 
-def _raw(key):
+def _raw(key: Any) -> bytes:
     serialization, _, _ = _crypto()
     return key.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
 
-def _key_id(raw): return hashlib.sha256(raw).hexdigest()
-def _message(data): return DOMAIN_SEPARATOR + data
+def _key_id(raw: bytes) -> str: return hashlib.sha256(raw).hexdigest()
+def _message(data: bytes) -> bytes: return DOMAIN_SEPARATOR + data
 
-def sign_report_manifest(report_path, private_key_path):
+def sign_report_manifest(report_path: str | Path, private_key_path: str | Path) -> dict[str, object]:
     serialization, Private, _ = _crypto()
     try: key = serialization.load_pem_private_key(_read(private_key_path), password=None)
     except TypeError:
@@ -45,8 +45,8 @@ def sign_report_manifest(report_path, private_key_path):
     report.with_name(SIGNATURE_FILENAME).write_text(json.dumps(envelope,indent=2,sort_keys=True)+"\n",encoding="utf-8")
     return envelope
 
-def _load_object(path):
-    def hook(pairs):
+def _load_object(path: Path) -> dict[str, Any]:
+    def hook(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         obj={}
         for k,v in pairs:
             if k in obj: raise EventLogError(f"{path}: duplicate JSON field {k!r}")
@@ -57,14 +57,16 @@ def _load_object(path):
     if not isinstance(obj,dict) or set(obj)!=_FIELDS: raise EventLogError("signature envelope has missing or unknown fields")
     return obj
 
-def _decode(value,label,size):
+def _decode(value: Any, label: str, size: int) -> bytes:
     if not isinstance(value,str): raise EventLogError(f"signature envelope {label} must be base64")
     try: raw=base64.b64decode(value,validate=True)
     except (binascii.Error,ValueError) as exc: raise EventLogError(f"signature envelope {label} is invalid base64") from exc
     if base64.b64encode(raw).decode("ascii")!=value or len(raw)!=size: raise EventLogError(f"signature envelope {label} has invalid encoding or length")
     return raw
 
-def verify_report_signature(report_path, *, trusted_public_key_path=None):
+def verify_report_signature(
+    report_path: str | Path, *, trusted_public_key_path: str | Path | None = None
+) -> dict[str, object]:
     serialization, _, Public = _crypto()
     manifest=Path(report_path); envelope=_load_object(manifest.with_name(SIGNATURE_FILENAME))
     if envelope["format"]!=SIGNATURE_FORMAT or type(envelope["version"]) is not int or envelope["version"]!=1: raise EventLogError("unsupported signature envelope format or version")
