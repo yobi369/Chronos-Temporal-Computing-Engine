@@ -287,7 +287,6 @@ print(len(engine.history))
     ]
 
 
-
 @pytest.mark.parametrize(
     ("filename", "content", "message"),
     [
@@ -315,7 +314,6 @@ def test_persisted_continuation_enforces_read_limit(tmp_path):
         read_timeline_continuation(target, max_bytes=10)
 
 
-
 def test_continuation_rejects_duplicate_json_object_keys():
     with pytest.raises(EventLogError, match="duplicate JSON object key"):
         timeline_continuation_from_json(
@@ -324,7 +322,7 @@ def test_continuation_rejects_duplicate_json_object_keys():
 
 
 def test_continuation_rejects_excessive_json_nesting_cleanly():
-    source = "[" * 1500 + "0" + "]" * 1500
+    source = '{"nested":' + "[" * 1500 + "0" + "]" * 1500 + "}"
     with pytest.raises(EventLogError, match="nesting depth"):
         timeline_continuation_from_json(source)
 
