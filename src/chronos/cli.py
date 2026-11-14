@@ -97,6 +97,7 @@ def create_experiment_report(
     *,
     event_logs: Sequence[str | Path] = (),
     continuations: Sequence[str | Path] = (),
+    signing_key: str | Path | None = None,
 ) -> dict[str, object]:
     """Create a portable report directory containing validated copies of artifacts."""
     sources = [
@@ -153,10 +154,11 @@ def create_experiment_report(
                 "validates artifact structure and metadata but does not replay simulations."
             ),
         }
-        (staging / REPORT_FILENAME).write_text(
-            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        report_path = staging / REPORT_FILENAME
+        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        if signing_key is not None:
+            from chronos.signing import sign_report_manifest
+            sign_report_manifest(report_path, signing_key)
         os.replace(staging, destination)
         return report
     except Exception:
@@ -164,7 +166,7 @@ def create_experiment_report(
         raise
 
 
-def verify_experiment_report(report_dir: str | Path) -> dict[str, object]:
+def verify_experiment_report(report_dir: str | Path, *, trusted_public_key: str | Path | None = None) -> dict[str, object]:
     """Validate every bundled artifact, its digest, and its recorded metadata."""
     root = Path(report_dir)
     report_path = root / REPORT_FILENAME
@@ -216,16 +218,27 @@ def verify_experiment_report(report_dir: str | Path) -> dict[str, object]:
         if actual_summary != expected_summary:
             raise EventLogError(f"{artifact_path}: validated metadata differs from the report")
 
+    if (root / "signature.json").is_file():
+        from chronos.signing import verify_report_signature
+        signature_result = verify_report_signature(report_path, trusted_public_key_path=trusted_public_key)
+    else:
+        if trusted_public_key is not None:
+            raise EventLogError("trusted public key supplied, but report is unsigned")
+        signature_result = {"signature_valid": False, "trust_status": "unsigned", "key_id": None, "algorithm": None, "trust_note": "No detached signature is present."}
+
     return {
         "verified": True,
+        "integrity_verified": True,
+        **signature_result,
         "artifact_count": len(artifacts),
         "event_log_count": sum(item["kind"] == "event_log" for item in artifacts),
         "continuation_count": sum(
             item["kind"] == "timeline_continuation" for item in artifacts
         ),
         "verification_scope": (
-            "Artifact file hashes, supported schemas, and recorded metadata. "
-            "No simulation replay, signature, or authorship authentication is performed."
+            "Artifact hashes, supported schemas, and metadata. Detached Ed25519 signatures "
+            "are checked when present; trust requires an explicit matching public key. "
+            "No simulation replay, identity proof, authorization, revocation, or trusted timestamp is provided."
         ),
     }
 
@@ -261,12 +274,14 @@ def _build_parser() -> argparse.ArgumentParser:
     create.add_argument("--output-dir", required=True, type=Path)
     create.add_argument("--event-log", action="append", type=Path, default=[])
     create.add_argument("--continuation", action="append", type=Path, default=[])
+    create.add_argument("--signing-key", type=Path, help="PEM Ed25519 private key; encrypted keys prompt for passphrase.")
 
     verify = commands.add_parser(
         "verify-report",
         help="Verify the hashes, schemas, and metadata in a portable report directory.",
     )
     verify.add_argument("report_dir", type=Path)
+    verify.add_argument("--trusted-public-key", type=Path, help="PEM Ed25519 public key for an explicit local trust decision.")
     verify.add_argument("--json", action="store_true", dest="json_output")
 
     return parser
@@ -288,9 +303,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.output_dir,
                 event_logs=args.event_log,
                 continuations=args.continuation,
+                signing_key=args.signing_key,
             )
         elif args.command == "verify-report":
-            summary = verify_experiment_report(args.report_dir)
+            summary = verify_experiment_report(args.report_dir, trusted_public_key=args.trusted_public_key)
         else:  # pragma: no cover - argparse requires a subcommand
             parser.error("a command is required")
             return 2
@@ -301,8 +317,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "create-report":
         print(f"Created Chronos experiment report: {args.output_dir}")
         print(f"Artifacts included: {len(args.event_log) + len(args.continuation)}")
+        if args.signing_key is not None: print("Report signature: Ed25519 detached signature created")
     elif args.command == "verify-report" and not args.json_output:
         print(f"PASS: verified {summary['artifact_count']} report artifacts")
+        print(f"Signature valid: {summary['signature_valid']}")
+        print(f"Trust status: {summary['trust_status']}")
         print(str(summary["verification_scope"]))
     elif getattr(args, "json_output", False):
         print(json.dumps(summary, indent=2, sort_keys=True))
