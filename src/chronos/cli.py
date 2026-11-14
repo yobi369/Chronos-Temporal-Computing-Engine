@@ -5,8 +5,8 @@ import argparse
 import json
 import sys
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from chronos import __version__
 from chronos.continuation import read_timeline_continuation
