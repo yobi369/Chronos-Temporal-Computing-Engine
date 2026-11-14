@@ -155,7 +155,10 @@ def create_experiment_report(
             ),
         }
         report_path = staging / REPORT_FILENAME
-        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        report_path.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
         if signing_key is not None:
             from chronos.signing import sign_report_manifest
             sign_report_manifest(report_path, signing_key)
@@ -166,7 +169,11 @@ def create_experiment_report(
         raise
 
 
-def verify_experiment_report(report_dir: str | Path, *, trusted_public_key: str | Path | None = None) -> dict[str, object]:
+def verify_experiment_report(
+    report_dir: str | Path,
+    *,
+    trusted_public_key: str | Path | None = None,
+) -> dict[str, object]:
     """Validate every bundled artifact, its digest, and its recorded metadata."""
     root = Path(report_dir)
     report_path = root / REPORT_FILENAME
@@ -224,7 +231,13 @@ def verify_experiment_report(report_dir: str | Path, *, trusted_public_key: str 
     else:
         if trusted_public_key is not None:
             raise EventLogError("trusted public key supplied, but report is unsigned")
-        signature_result = {"signature_valid": False, "trust_status": "unsigned", "key_id": None, "algorithm": None, "trust_note": "No detached signature is present."}
+        signature_result = {
+            "signature_valid": False,
+            "trust_status": "unsigned",
+            "key_id": None,
+            "algorithm": None,
+            "trust_note": "No detached signature is present.",
+        }
 
     return {
         "verified": True,
@@ -274,14 +287,22 @@ def _build_parser() -> argparse.ArgumentParser:
     create.add_argument("--output-dir", required=True, type=Path)
     create.add_argument("--event-log", action="append", type=Path, default=[])
     create.add_argument("--continuation", action="append", type=Path, default=[])
-    create.add_argument("--signing-key", type=Path, help="PEM Ed25519 private key; encrypted keys prompt for passphrase.")
+    create.add_argument(
+        "--signing-key",
+        type=Path,
+        help="PEM Ed25519 private key; encrypted keys prompt for passphrase.",
+    )
 
     verify = commands.add_parser(
         "verify-report",
         help="Verify the hashes, schemas, and metadata in a portable report directory.",
     )
     verify.add_argument("report_dir", type=Path)
-    verify.add_argument("--trusted-public-key", type=Path, help="PEM Ed25519 public key for an explicit local trust decision.")
+    verify.add_argument(
+        "--trusted-public-key",
+        type=Path,
+        help="PEM Ed25519 public key for an explicit local trust decision.",
+    )
     verify.add_argument("--json", action="store_true", dest="json_output")
 
     return parser
@@ -317,7 +338,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "create-report":
         print(f"Created Chronos experiment report: {args.output_dir}")
         print(f"Artifacts included: {len(args.event_log) + len(args.continuation)}")
-        if args.signing_key is not None: print("Report signature: Ed25519 detached signature created")
+        if args.signing_key is not None:
+            print("Report signature: Ed25519 detached signature created")
     elif args.command == "verify-report" and not args.json_output:
         print(f"PASS: verified {summary['artifact_count']} report artifacts")
         print(f"Signature valid: {summary['signature_valid']}")

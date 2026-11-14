@@ -167,52 +167,122 @@ def test_report_creation_refuses_to_overwrite_existing_directory(tmp_path, capsy
     assert "already exists" in capsys.readouterr().err
 
 
+
 def _write_ed25519_keys(tmp_path, name="reviewer"):
     crypto = pytest.importorskip("cryptography.hazmat.primitives.asymmetric.ed25519")
     from cryptography.hazmat.primitives import serialization
+
     private = crypto.Ed25519PrivateKey.generate()
-    private_path, public_path = tmp_path / f"{name}-private.pem", tmp_path / f"{name}-public.pem"
-    private_path.write_bytes(private.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
-    public_path.write_bytes(private.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+    private_path = tmp_path / f"{name}-private.pem"
+    public_path = tmp_path / f"{name}-public.pem"
+    private_path.write_bytes(
+        private.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    public_path.write_bytes(
+        private.public_key().public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    )
     return private_path, public_path
 
+
 def test_signed_report_is_valid_but_untrusted_without_trust_input(tmp_path, capsys):
-    event_log=_build_event_log(tmp_path); private,_=_write_ed25519_keys(tmp_path); bundle=tmp_path/"signed"
-    assert main(["create-report","--output-dir",str(bundle),"--event-log",str(event_log),"--signing-key",str(private)])==0
+    event_log = _build_event_log(tmp_path)
+    private_key, _ = _write_ed25519_keys(tmp_path)
+    report_dir = tmp_path / "signed-untrusted"
+    assert main([
+        "create-report", "--output-dir", str(report_dir),
+        "--event-log", str(event_log), "--signing-key", str(private_key),
+    ]) == 0
     capsys.readouterr()
-    assert (bundle/"signature.json").is_file()
-    assert private.read_bytes() not in (bundle/"signature.json").read_bytes()
-    assert main(["verify-report",str(bundle),"--json"])==0
-    result=json.loads(capsys.readouterr().out)
-    assert result["integrity_verified"] and result["signature_valid"] and result["trust_status"]=="untrusted"
 
-def test_report_trust_requires_exact_matching_public_key(tmp_path,capsys):
-    event_log=_build_event_log(tmp_path); private,public=_write_ed25519_keys(tmp_path,"right"); _,wrong=_write_ed25519_keys(tmp_path,"wrong"); bundle=tmp_path/"signed"
-    assert main(["create-report","--output-dir",str(bundle),"--event-log",str(event_log),"--signing-key",str(private)])==0
+    assert (report_dir / "signature.json").is_file()
+    assert private_key.read_bytes() not in (report_dir / "signature.json").read_bytes()
+    assert main(["verify-report", str(report_dir), "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["integrity_verified"] is True
+    assert result["signature_valid"] is True
+    assert result["trust_status"] == "untrusted"
+
+
+def test_report_trust_requires_exact_matching_public_key(tmp_path, capsys):
+    event_log = _build_event_log(tmp_path)
+    private_key, public_key = _write_ed25519_keys(tmp_path, "right")
+    _, wrong_public_key = _write_ed25519_keys(tmp_path, "wrong")
+    report_dir = tmp_path / "signed-trusted"
+    assert main([
+        "create-report", "--output-dir", str(report_dir),
+        "--event-log", str(event_log), "--signing-key", str(private_key),
+    ]) == 0
     capsys.readouterr()
-    assert main(["verify-report",str(bundle),"--trusted-public-key",str(wrong),"--json"])==0
-    assert json.loads(capsys.readouterr().out)["trust_status"]=="untrusted"
-    assert main(["verify-report",str(bundle),"--trusted-public-key",str(public),"--json"])==0
-    result=json.loads(capsys.readouterr().out)
-    assert result["signature_valid"] and result["trust_status"]=="trusted"
 
-def test_signed_report_detects_manifest_tampering(tmp_path,capsys):
-    event_log=_build_event_log(tmp_path); private,_=_write_ed25519_keys(tmp_path); bundle=tmp_path/"signed"
-    assert main(["create-report","--output-dir",str(bundle),"--event-log",str(event_log),"--signing-key",str(private)])==0
-    capsys.readouterr(); manifest=bundle/"report.json"; manifest.write_bytes(manifest.read_bytes()+b" ")
-    assert main(["verify-report",str(bundle)])==2
+    assert main([
+        "verify-report", str(report_dir),
+        "--trusted-public-key", str(wrong_public_key), "--json",
+    ]) == 0
+    wrong = json.loads(capsys.readouterr().out)
+    assert wrong["signature_valid"] is True
+    assert wrong["trust_status"] == "untrusted"
+
+    assert main([
+        "verify-report", str(report_dir),
+        "--trusted-public-key", str(public_key), "--json",
+    ]) == 0
+    trusted = json.loads(capsys.readouterr().out)
+    assert trusted["signature_valid"] is True
+    assert trusted["trust_status"] == "trusted"
+
+
+def test_signed_report_detects_manifest_tampering(tmp_path, capsys):
+    event_log = _build_event_log(tmp_path)
+    private_key, _ = _write_ed25519_keys(tmp_path)
+    report_dir = tmp_path / "signed-tamper"
+    assert main([
+        "create-report", "--output-dir", str(report_dir),
+        "--event-log", str(event_log), "--signing-key", str(private_key),
+    ]) == 0
+    capsys.readouterr()
+
+    manifest = report_dir / "report.json"
+    manifest.write_bytes(manifest.read_bytes() + b" ")
+    assert main(["verify-report", str(report_dir)]) == 2
     assert "manifest SHA-256 digest mismatch" in capsys.readouterr().err
 
-def test_signature_envelope_rejects_unknown_fields(tmp_path,capsys):
-    event_log=_build_event_log(tmp_path); private,_=_write_ed25519_keys(tmp_path); bundle=tmp_path/"signed"
-    assert main(["create-report","--output-dir",str(bundle),"--event-log",str(event_log),"--signing-key",str(private)])==0
-    capsys.readouterr(); path=bundle/"signature.json"; env=json.loads(path.read_text()); env["extra"]=True; path.write_text(json.dumps(env))
-    assert main(["verify-report",str(bundle)])==2
+
+def test_signature_envelope_rejects_unknown_fields(tmp_path, capsys):
+    event_log = _build_event_log(tmp_path)
+    private_key, _ = _write_ed25519_keys(tmp_path)
+    report_dir = tmp_path / "signed-envelope"
+    assert main([
+        "create-report", "--output-dir", str(report_dir),
+        "--event-log", str(event_log), "--signing-key", str(private_key),
+    ]) == 0
+    capsys.readouterr()
+
+    envelope_path = report_dir / "signature.json"
+    envelope = json.loads(envelope_path.read_text(encoding="utf-8"))
+    envelope["unexpected"] = True
+    envelope_path.write_text(json.dumps(envelope), encoding="utf-8")
+    assert main(["verify-report", str(report_dir)]) == 2
     assert "missing or unknown fields" in capsys.readouterr().err
 
-def test_unsigned_report_compatibility(tmp_path,capsys):
-    event_log=_build_event_log(tmp_path); bundle=tmp_path/"unsigned"
-    assert main(["create-report","--output-dir",str(bundle),"--event-log",str(event_log)])==0
-    capsys.readouterr(); assert main(["verify-report",str(bundle),"--json"])==0
-    result=json.loads(capsys.readouterr().out)
-    assert result["integrity_verified"] and not result["signature_valid"] and result["trust_status"]=="unsigned"
+
+def test_unsigned_report_remains_compatible(tmp_path, capsys):
+    event_log = _build_event_log(tmp_path)
+    report_dir = tmp_path / "legacy-unsigned"
+    assert main([
+        "create-report", "--output-dir", str(report_dir),
+        "--event-log", str(event_log),
+    ]) == 0
+    capsys.readouterr()
+
+    assert main(["verify-report", str(report_dir), "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["integrity_verified"] is True
+    assert result["signature_valid"] is False
+    assert result["trust_status"] == "unsigned"
