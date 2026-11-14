@@ -35,7 +35,7 @@ Run the benchmark:
 
 See docs/reference-experiment.md for a replay-verified counterfactual supply-resilience workflow.
 
-See docs/architecture.md, docs/event-logs-and-replay.md, docs/timeline-continuations.md, docs/event-log-migration.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md, docs/validation.md, docs/research-roadmap.md and docs/market-readiness.md.
+See [machine-readable serialization schemas](docs/schemas/README.md), docs/architecture.md, docs/event-logs-and-replay.md, docs/timeline-continuations.md, docs/event-log-migration.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md, docs/validation.md, docs/research-roadmap.md and docs/market-readiness.md.
 
 ## Important limitations
 
