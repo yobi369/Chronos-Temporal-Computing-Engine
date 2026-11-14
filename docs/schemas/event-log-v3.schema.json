@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/yobi369/Chronos-Temporal-Computing-Engine/blob/main/docs/schemas/event-log-v3.schema.json",
+  "$id": "urn:chronos:schema:event-log-v3",
   "title": "Chronos event log schema v3",
   "description": "Wire-format contract for event-log schema version 3. Chronos canonical JSON rules are documented separately; JSON Schema does not define digest canonicalization.",
   "type": "object",
