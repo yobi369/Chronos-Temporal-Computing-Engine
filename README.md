@@ -2,6 +2,8 @@
 
 Chronos is an early-stage research software project for deterministic discrete-event simulation, causal event provenance, and branching logical timelines.
 
+**Commercial product direction:** Chronos is being developed toward a Python-native environment for reproducible causal experiments, controlled timeline branching, and replay verification. See the [commercial product brief](docs/commercial-product-brief.md) for the proposed first offering, target users, validation programme, and launch gates. This is a product direction, not a claim that a polished commercial workbench or production service is already available.
+
 ## Implemented capabilities
 
 - Deterministic discrete-event scheduling with stable time/sequence ordering.
@@ -35,7 +37,7 @@ Run the benchmark:
 
 See docs/reference-experiment.md for a replay-verified counterfactual supply-resilience workflow.
 
-See [machine-readable serialization schemas](docs/schemas/README.md), docs/architecture.md, docs/event-logs-and-replay.md, docs/timeline-continuations.md, docs/event-log-migration.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md, docs/validation.md, docs/research-roadmap.md and docs/market-readiness.md.
+See [machine-readable serialization schemas](docs/schemas/README.md), docs/architecture.md, docs/event-logs-and-replay.md, docs/timeline-continuations.md, docs/event-log-migration.md, docs/temporal-model.md, docs/snapshot-format.md, docs/temporal-logic.md, docs/symbolic-verification.md, docs/hybrid-simulation.md, docs/uncertain-time.md, docs/distributed-execution.md, docs/checkpoint-recovery.md, docs/statistical-benchmarks.md, docs/validation.md, docs/research-roadmap.md, docs/market-readiness.md, and docs/competitive-positioning.md.
 
 ## Important limitations
 
