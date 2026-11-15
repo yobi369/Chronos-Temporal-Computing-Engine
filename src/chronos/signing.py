@@ -7,13 +7,15 @@ import getpass
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 from chronos.event_log import EventLogError
 
 SIGNATURE_FILENAME = "signature.json"
 SIGNATURE_FORMAT = "chronos-report-signature"
 DOMAIN_SEPARATOR = b"CHRONOS-REPORT-SIGNATURE\x00v1\x00"
+MAX_KEY_FILE_BYTES = 64 * 1024
+MAX_SIGNATURE_ENVELOPE_BYTES = 16 * 1024
 _FIELDS = {
     "format",
     "version",
@@ -41,11 +43,19 @@ def _crypto() -> tuple[Any, Any, Any]:
     return serialization, Ed25519PrivateKey, Ed25519PublicKey
 
 
-def _read(path: str | Path) -> bytes:
+def _read_bounded(path: str | Path, *, limit: int, label: str) -> bytes:
     try:
-        return Path(path).read_bytes()
+        with Path(path).open("rb") as stream:
+            data = stream.read(limit + 1)
     except OSError as exc:
-        raise EventLogError(f"cannot read key file {path}: {exc}") from exc
+        raise EventLogError(f"cannot read {label} {path}: {exc}") from exc
+    if len(data) > limit:
+        raise EventLogError(f"{path}: {label} exceeds the {limit}-byte limit")
+    return data
+
+
+def _read(path: str | Path) -> bytes:
+    return _read_bounded(path, limit=MAX_KEY_FILE_BYTES, label="key file")
 
 
 def _raw(key: Any) -> bytes:
@@ -76,7 +86,12 @@ def sign_report_manifest(
     try:
         key = serialization.load_pem_private_key(key_data, password=None)
     except TypeError:
-        password = getpass.getpass("Private key passphrase: ").encode("utf-8")
+        try:
+            password = getpass.getpass("Private key passphrase: ").encode("utf-8")
+        except (EOFError, OSError) as exc:
+            raise EventLogError(
+                "cannot prompt for the encrypted Ed25519 private-key passphrase"
+            ) from exc
         try:
             key = serialization.load_pem_private_key(key_data, password=password)
         except (TypeError, ValueError) as exc:
@@ -90,7 +105,11 @@ def sign_report_manifest(
         raise EventLogError("signing key must be an Ed25519 private key")
 
     report = Path(report_path)
-    data = report.read_bytes()
+    try:
+        data = report.read_bytes()
+    except OSError as exc:
+        raise EventLogError(f"cannot read report manifest {report}: {exc}") from exc
+
     public_bytes = _raw(key.public_key())
     envelope: dict[str, object] = {
         "format": SIGNATURE_FORMAT,
@@ -102,10 +121,13 @@ def sign_report_manifest(
         "signature": base64.b64encode(key.sign(_message(data))).decode("ascii"),
     }
     envelope_path = report.with_name(SIGNATURE_FILENAME)
-    envelope_path.write_text(
-        json.dumps(envelope, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    try:
+        envelope_path.write_text(
+            json.dumps(envelope, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise EventLogError(f"cannot write signature envelope {envelope_path}: {exc}") from exc
     return envelope
 
 
@@ -118,13 +140,29 @@ def _load_object(path: Path) -> dict[str, Any]:
             result[key] = value
         return result
 
+    def reject_constant(value: str) -> NoReturn:
+        raise EventLogError(f"{path}: non-standard JSON constant {value!r}")
+
+    raw = _read_bounded(
+        path,
+        limit=MAX_SIGNATURE_ENVELOPE_BYTES,
+        label="signature envelope",
+    )
+    try:
+        source = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise EventLogError(f"{path}: signature envelope must be UTF-8") from exc
+
     try:
         document = json.loads(
-            path.read_text(encoding="utf-8"),
+            source,
             object_pairs_hook=hook,
+            parse_constant=reject_constant,
         )
     except json.JSONDecodeError as exc:
         raise EventLogError(f"{path}: invalid signature JSON: {exc}") from exc
+    except RecursionError as exc:
+        raise EventLogError(f"{path}: signature JSON nesting is excessive") from exc
     if not isinstance(document, dict) or set(document) != _FIELDS:
         raise EventLogError("signature envelope has missing or unknown fields")
     return document
@@ -186,7 +224,10 @@ def verify_report_signature(
     if _key_id(public_bytes) != key_id:
         raise EventLogError("signature envelope key identifier mismatch")
 
-    report_bytes = manifest.read_bytes()
+    try:
+        report_bytes = manifest.read_bytes()
+    except OSError as exc:
+        raise EventLogError(f"cannot read report manifest {manifest}: {exc}") from exc
     if hashlib.sha256(report_bytes).hexdigest() != digest:
         raise EventLogError("signed report manifest SHA-256 digest mismatch")
 

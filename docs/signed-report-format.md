@@ -38,7 +38,7 @@ signature.json is UTF-8 JSON with these version-1 fields:
       "signature": "<base64 of 64 Ed25519 signature bytes>"
     }
 
-The verifier rejects duplicate or unknown fields, unsupported versions and algorithms, invalid key identifiers or report digests, malformed or non-canonical base64, incorrect key/signature lengths, key-ID mismatches, manifest digest mismatches, and invalid signatures.
+The verifier reads a bounded signature envelope (16 KiB maximum), requires UTF-8 JSON, and rejects duplicate or unknown fields, non-standard JSON constants, unsupported versions and algorithms, invalid key identifiers or report digests, malformed or non-canonical base64, incorrect key/signature lengths, key-ID mismatches, manifest digest mismatches, and invalid signatures. PEM key inputs are limited to 64 KiB. These bounds apply to the signature envelope and key files; they are not a general sandbox or a bound on report-manifest size.
 
 The public key is embedded to permit cryptographic verification without a network lookup. Its presence does not make it trusted.
 
@@ -70,7 +70,7 @@ For a signed report without a trusted public key, verification returns signature
 
 ## Tests and release validation
 
-The current test suite covers signing and verification with generated Ed25519 keys, valid-but-untrusted status, exact-key trust matching, wrong-key behavior, manifest tampering, unknown envelope fields, private-key exclusion from the envelope, and unsigned-report compatibility.
+The current test suite covers signing and verification with generated Ed25519 keys, valid-but-untrusted status, exact-key trust matching, wrong-key behavior, manifest tampering, duplicate fields, invalid UTF-8, non-standard JSON constants, envelope/key-file size limits, unsupported version/algorithm values, key-ID mismatch, malformed base64 and lengths, signature-byte tampering, encrypted-key passphrase prompting, private-key exclusion from the envelope, and unsigned-report compatibility.
 
 Before a release, extend negative-format coverage to include deterministic test vectors, duplicate fields, unsupported version/algorithm values, malformed base64 and lengths, key-ID mismatch, signature-byte tampering, encrypted-key prompting, and operation without the optional dependency. Run the complete supported OS/Python CI matrix and perform an independent security review of key handling.
 
