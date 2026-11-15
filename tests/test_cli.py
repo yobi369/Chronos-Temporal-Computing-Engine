@@ -314,17 +314,22 @@ def test_render_report_creates_offline_html_after_verification(tmp_path, capsys)
 
 def test_render_report_escapes_untrusted_filenames(tmp_path):
     original = _build_event_log(tmp_path)
-    hostile = tmp_path / '<img src=x onerror="alert(1)">.json'
-    hostile.write_bytes(original.read_bytes())
     report_dir = tmp_path / "escaped-review"
-    from chronos.cli import create_experiment_report
+    from chronos.cli import create_experiment_report, render_experiment_report
 
-    create_experiment_report(report_dir, event_logs=[hostile])
-    from chronos.cli import render_experiment_report
+    create_experiment_report(report_dir, event_logs=[original])
+    manifest_path = report_dir / "report.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    hostile_name = '<img src=x onerror="alert(1)">.json'
+    manifest["artifacts"][0]["original_name"] = hostile_name
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\\n",
+        encoding="utf-8",
+    )
 
     output = render_experiment_report(report_dir).read_text(encoding="utf-8")
     assert '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;.json' in output
-    assert '<img src=x onerror="alert(1)">' not in output
+    assert hostile_name not in output
     assert "<script" not in output
 
 
