@@ -322,10 +322,8 @@ def test_render_report_escapes_untrusted_filenames(tmp_path):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     hostile_name = '<img src=x onerror="alert(1)">.json'
     manifest["artifacts"][0]["original_name"] = hostile_name
-    manifest_path.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\\n",
-        encoding="utf-8",
-    )
+    manifest_json = json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True)
+    manifest_path.write_text(manifest_json + chr(10), encoding="utf-8")
 
     output = render_experiment_report(report_dir).read_text(encoding="utf-8")
     assert '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;.json' in output
