@@ -304,8 +304,11 @@ def test_render_report_creates_offline_html_after_verification(tmp_path, capsys)
     assert "Integrity and schema checks: PASS" in document
     assert "Unsigned report" in document
     assert "Artifact 1: event_log" in document
-    assert "does not load remote scripts" in document
-    assert "<script" not in document
+    normalized_document = " ".join(document.split())
+    assert "does not load remote scripts" in normalized_document
+    assert "<script" not in document.lower()
+    assert "http://" not in document.lower()
+    assert "https://" not in document.lower()
     assert "Rendered reviewer report:" in output.out
 
 

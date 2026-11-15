@@ -1,94 +1,79 @@
-# Signed report format and implementation decision
+# Signed report format
 
-**Status:** Accepted design; implementation pending  
+**Status:** Implemented on the development branch; release validation remains open  
 **Scope:** Portable Chronos experiment reports  
 **Signing format:** Version 1
 
-This decision defines the first supported signed-report profile. It deliberately separates mathematical signature validity from a recipient's trust policy.
+This format separates cryptographic signature validity from a recipient's trust policy.
 
-## Decision
+## Decision and implementation
 
-- Use Ed25519 signatures through the maintained `cryptography` Python package.
-- Keep `cryptography` optional so the Chronos core remains dependency-free. Expose a `signing` extra.
-- Keep the existing report manifest (`report.json`) as the signed object. Sign its exact bytes as written to disk; do not parse and reserialize it during verification.
-- Store the detached signature and public verification key in `signature.json`. Never include private key material in a report.
-- Accept externally managed PEM private keys for signing and PEM public keys as recipient trust inputs.
-- Compute the key identifier as the lowercase hexadecimal SHA-256 digest of the Ed25519 raw 32-byte public key.
-- Report signature validity and trust status independently.
+- Ed25519 signatures use the maintained cryptography Python package.
+- cryptography remains optional; the package exposes a signing extra.
+- The signed object is the exact byte sequence of report.json as written to disk. Verification does not parse and reserialize the manifest before checking the signature.
+- The detached signature and public verification key are stored in signature.json. Private key material is never included in a report.
+- Signing accepts an externally managed PEM Ed25519 private key. Verification accepts an optional PEM public key as the recipient's explicit trust input.
+- The key identifier is the lowercase hexadecimal SHA-256 digest of the raw 32-byte Ed25519 public key.
+- Signature validity and trust status are reported independently.
 
 ## Signed bytes
 
-The signed message is the following byte concatenation:
+The signed message is:
 
-```text
-ASCII("CHRONOS-REPORT-SIGNATURE") || 0x00 || ASCII("v1") || 0x00 || exact report.json bytes
-```
+    ASCII("CHRONOS-REPORT-SIGNATURE") || 0x00 || ASCII("v1") || 0x00 || exact report.json bytes
 
-The domain separator prevents the signature from being confused with a signature over another Chronos object type. The manifest already binds each artifact's relative path, SHA-256 digest, type, and metadata summary. The exact-byte rule means whitespace changes to `report.json` invalidate the signature; no JSON canonicalization claim is made.
+The domain separator prevents this signature from being confused with a signature over another Chronos object type. The exact-byte rule means whitespace changes to report.json invalidate the signature. This format does not claim canonical JSON serialization.
 
 ## Detached envelope
 
-`signature.json` is UTF-8 JSON with this version-1 shape:
+signature.json is UTF-8 JSON with these version-1 fields:
 
-```json
-{
-  "format": "chronos-report-signature",
-  "version": 1,
-  "algorithm": "Ed25519",
-  "key_id": "<64 lowercase hexadecimal characters>",
-  "public_key": "<base64 of 32 raw Ed25519 public-key bytes>",
-  "report_sha256": "<64 lowercase hexadecimal characters>",
-  "signature": "<base64 of 64 Ed25519 signature bytes>"
-}
-```
+    {
+      "format": "chronos-report-signature",
+      "version": 1,
+      "algorithm": "Ed25519",
+      "key_id": "<64 lowercase hexadecimal characters>",
+      "public_key": "<base64 of 32 raw Ed25519 public-key bytes>",
+      "report_sha256": "<64 lowercase hexadecimal characters>",
+      "signature": "<base64 of 64 Ed25519 signature bytes>"
+    }
 
-The verifier must reject wrong types, unsupported versions/algorithms, malformed or non-canonical base64, incorrect key/signature lengths, invalid key identifiers, and unknown envelope fields. It must recompute both the key identifier and report digest. The signature is verified over the domain-separated exact manifest bytes.
+The verifier rejects duplicate or unknown fields, unsupported versions and algorithms, invalid key identifiers or report digests, malformed or non-canonical base64, incorrect key/signature lengths, key-ID mismatches, manifest digest mismatches, and invalid signatures.
 
-The public key is included to permit cryptographic verification without a network lookup. Its presence does not make it trusted.
+The public key is embedded to permit cryptographic verification without a network lookup. Its presence does not make it trusted.
 
 ## Trust policy
 
 - A mathematically valid signature with no matching trusted public key is **valid but untrusted**.
-- A signature is **trusted** only when its derived key identifier and raw public key exactly match a public key supplied through an explicit local trust input.
-- A trusted-key match is a local policy decision, not proof of legal identity, organizational authorization, key custody, or current key status.
-- Version 1 has no online certificate discovery, revocation, expiry, trusted timestamp, organization directory, or automated key rotation. The CLI must state these limitations.
-- Invalid signatures and manifest digest mismatches fail verification. Unknown signing keys do not turn a valid signature into a trusted one.
+- A signature is **trusted** only when the embedded raw public key exactly matches a PEM public key explicitly supplied by the reviewer.
+- A trusted-key match is a local policy decision. It is not proof of legal identity, organizational authorization, key custody, or current key status.
+- Version 1 has no online certificate discovery, revocation, expiry, trusted timestamp, organization directory, or automated key rotation.
+- Invalid signatures and manifest digest mismatches fail verification. An unknown signing key does not become trusted merely because its signature is mathematically valid.
 
-## CLI contract
+## CLI
 
-Planned commands:
+Create a signed report:
 
-```sh
-chronos create-report --output-dir review-bundle \
-  --continuation experiment.continuation.json \
-  --signing-key /secure/path/reviewer-ed25519-private.pem
+    chronos create-report --output-dir review-bundle --continuation experiment.continuation.json --signing-key /secure/path/reviewer-private.pem
 
-chronos verify-report review-bundle
-chronos verify-report review-bundle \
-  --trusted-public-key /secure/path/reviewer-ed25519-public.pem
-```
+Verify cryptographic validity:
 
-Signing must fail clearly if the optional dependency is absent, the key is not Ed25519, or the key cannot be loaded. The user supplies the key; Chronos must not generate, persist, upload, print, or bundle private keys. Key passphrases must never be accepted as command-line arguments or logged.
+    chronos verify-report review-bundle
 
-Verification of an unsigned legacy report remains supported. Verification of a signed report without a trusted key may report cryptographic validity while explicitly returning an untrusted trust status. JSON output must keep `integrity_verified`, `signature_valid`, and `trust_status` as separate fields.
+Verify and make an explicit local trust decision:
 
-## Required tests
+    chronos verify-report review-bundle --trusted-public-key /secure/path/reviewer-public.pem
 
-- Known deterministic Ed25519 test vector for the domain-separated message.
-- Sign and verify with matching key.
-- Valid signature with no trust input reports untrusted.
-- Valid signature with matching trust input reports trusted.
-- Wrong trusted key remains untrusted.
-- Manifest byte change, artifact tampering, signature tampering, and wrong key fail safely.
-- Malformed envelope, duplicate/unknown fields, unsupported algorithm/version, invalid base64, wrong key/signature lengths, and key-ID mismatch are rejected.
-- Unsigned report compatibility remains intact.
-- Private key bytes never appear in report contents or CLI output.
-- Cross-platform CI covers supported Python versions.
+Encrypted PEM private keys prompt for a passphrase. Passphrases are not command-line arguments and are not logged. Chronos does not generate, persist, upload, print, or bundle private keys.
+
+For a signed report without a trusted public key, verification returns signature_valid=true and trust_status=untrusted. The CLI's successful exit status means the report structure, artifact integrity, and signature are valid; it does not mean the signer is trusted. Automation that requires a trusted signer must inspect trust_status or provide the expected key.
+
+## Tests and release validation
+
+The current test suite covers signing and verification with generated Ed25519 keys, valid-but-untrusted status, exact-key trust matching, wrong-key behavior, manifest tampering, unknown envelope fields, private-key exclusion from the envelope, and unsigned-report compatibility.
+
+Before a release, extend negative-format coverage to include deterministic test vectors, duplicate fields, unsupported version/algorithm values, malformed base64 and lengths, key-ID mismatch, signature-byte tampering, encrypted-key prompting, and operation without the optional dependency. Run the complete supported OS/Python CI matrix and perform an independent security review of key handling.
 
 ## Security boundary
 
-This format provides a detached Ed25519 signature over a report manifest and a local key-match trust decision. It does not establish a real-world identity, authorization, trusted time, revocation status, scientific correctness, simulation replay, or host integrity. It is not a compliance certification or a substitute for managed organizational key custody.
-
-## Implementation gate
-
-Do not advertise signed reports until the implementation, dependency extra, CLI, tests, and user documentation all land and the full CI matrix passes.
+This format signs the report manifest, which binds artifact paths, hashes, types, and metadata summaries. It does not establish a real-world identity, authorization, trusted time, revocation status, scientific correctness, simulation replay, or host integrity. It is not a compliance certification or a substitute for managed organizational key custody.

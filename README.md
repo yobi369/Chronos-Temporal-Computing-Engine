@@ -35,6 +35,8 @@ The chronos CLI validates and summarizes persisted event logs and timeline conti
     chronos verify-report review-bundle
     chronos render-report review-bundle
 
+Portable reports can optionally be signed with Ed25519 using the `signing` extra and an externally managed private key. A signature is only considered trusted when its public key matches a key supplied independently by the reviewer; see [the security and provenance model](docs/security-and-provenance.md).
+
 Use python -m chronos when invoking it from an environment where the console script is not on PATH. See [docs/cli.md](docs/cli.md) and [docs/experiment-reports.md](docs/experiment-reports.md) for commands, report structure, and verification boundaries.
 
 ## Development
