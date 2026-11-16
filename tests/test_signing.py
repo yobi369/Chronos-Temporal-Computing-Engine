@@ -167,3 +167,61 @@ def test_encrypted_private_key_uses_passphrase_prompt(tmp_path, monkeypatch):
     result = verify_report_signature(report_path)
     assert result["signature_valid"] is True
     assert result["trust_status"] == "untrusted"
+
+def test_signing_matches_fixed_chronos_ed25519_vector(tmp_path):
+    crypto = pytest.importorskip("cryptography.hazmat.primitives.asymmetric.ed25519")
+    from cryptography.hazmat.primitives import serialization
+
+    # Public RFC 8032 test seed; never use this key outside this deterministic test.
+    seed = bytes.fromhex(
+        "9d61b19deffd5a60ba844af492ec2cc4"
+        "4449c5697b326919703bac031cae7f60"
+    )
+    private = crypto.Ed25519PrivateKey.from_private_bytes(seed)
+    private_path = tmp_path / "vector-private.pem"
+    report_path = tmp_path / "report.json"
+    private_path.write_bytes(
+        private.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    report_path.write_bytes(b'{"format":"test-report","version":1}\n')
+
+    envelope = sign_report_manifest(report_path, private_path)
+
+    assert envelope["public_key"] == "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo="
+    assert envelope["key_id"] == (
+        "21fe31dfa154a261626bf854046fd227"
+        "1b7bed4b6abe45aa58877ef47f9721b9"
+    )
+    assert envelope["signature"] == (
+        "dO+S+UdA/BLFuVGeiF3qcBvuzs71DbJWM3uY3wsWR/5ECwZV"
+        "sbWr1ffQJI4mdr2ZJrPX07G9MSEpZ5Agvym6Dg=="
+    )
+    result = verify_report_signature(report_path)
+    assert result["signature_valid"] is True
+    assert result["trust_status"] == "untrusted"
+
+
+@pytest.mark.parametrize("operation", ["sign", "verify"])
+def test_signing_fails_clearly_without_optional_dependency(
+    monkeypatch, tmp_path, operation
+):
+    import builtins
+
+    original_import = builtins.__import__
+
+    def reject_cryptography(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "cryptography" or name.startswith("cryptography."):
+            raise ImportError("simulated missing optional dependency")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", reject_cryptography)
+
+    with pytest.raises(EventLogError, match=r"Ed25519 support requires: pip install"):
+        if operation == "sign":
+            sign_report_manifest(tmp_path / "unused-report.json", tmp_path / "unused-key.pem")
+        else:
+            verify_report_signature(tmp_path / "unused-report.json")

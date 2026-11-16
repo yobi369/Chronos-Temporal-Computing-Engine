@@ -70,9 +70,11 @@ For a signed report without a trusted public key, verification returns signature
 
 ## Tests and release validation
 
-The current test suite covers signing and verification with generated Ed25519 keys, valid-but-untrusted status, exact-key trust matching, wrong-key behavior, manifest tampering, duplicate fields, invalid UTF-8, non-standard JSON constants, envelope/key-file size limits, unsupported version/algorithm values, key-ID mismatch, malformed base64 and lengths, signature-byte tampering, encrypted-key passphrase prompting, private-key exclusion from the envelope, and unsigned-report compatibility.
+The current test suite covers signing and verification with generated Ed25519 keys, valid-but-untrusted status, exact-key trust matching, wrong-key behavior, manifest tampering, duplicate fields, invalid UTF-8, non-standard JSON constants, envelope/key-file size limits, unsupported version/algorithm values, key-ID mismatch, malformed base64 and lengths, signature-byte tampering, encrypted-key passphrase prompting, private-key exclusion from the envelope, unsigned-report compatibility, a fixed deterministic signing vector, and graceful failure when the optional signing dependency is unavailable.
 
-Before a release, extend negative-format coverage to include deterministic test vectors, duplicate fields, unsupported version/algorithm values, malformed base64 and lengths, key-ID mismatch, signature-byte tampering, encrypted-key prompting, and operation without the optional dependency. Run the complete supported OS/Python CI matrix and perform an independent security review of key handling.
+The deterministic vector uses the public RFC 8032 test seed `9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60` with the exact manifest bytes `{"format":"test-report","version":1}` followed by one newline. It asserts the raw public key `d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a`, key ID `21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9`, and detached signature `74ef92f94740fc12c5b9519e885dea701beececef50db256337b98df0b1647fe440b0655b1b5abd5f7d0248e2676bd9926b3d7d3b1bd312129679020bf29ba0e`. This public test key is only a regression fixture and must never be used for real reports.
+
+The missing-dependency test simulates an unavailable `cryptography` import for both signing and verification. A release candidate must still be installed in a clean environment without the `[signing]` extra to confirm the core package remains usable, then tested with the extra enabled. Run the complete supported OS/Python CI matrix and perform an independent security review of key handling.
 
 ## Security boundary
 
