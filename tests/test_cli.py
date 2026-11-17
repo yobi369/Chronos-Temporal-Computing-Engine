@@ -460,7 +460,7 @@ def test_report_manifest_depth_guard_ignores_brackets_inside_strings(tmp_path):
     create_experiment_report(report_dir, event_logs=[event_log])
     manifest_path = report_dir / "report.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["artifacts"][0]["original_name"] = "[" * 1000 + "]" * 1000
+    manifest["artifacts"][0]["original_name"] = 'quoted delimiter: "' + "[" * 1000 + "]" * 1000
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     assert verify_experiment_report(report_dir)["verified"] is True

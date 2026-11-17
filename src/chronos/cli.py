@@ -35,7 +35,7 @@ def _validate_report_json_depth(source: str, path: Path) -> None:
         if in_string:
             if escaped:
                 escaped = False
-            elif character == "\\\\":
+            elif character == "\\":
                 escaped = True
             elif character == '"':
                 in_string = False
