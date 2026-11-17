@@ -345,12 +345,14 @@ def test_render_report_refuses_tampered_bundle_without_writing_html(tmp_path):
     assert not (report_dir / "index.html").exists()
 
 
-
 @pytest.mark.parametrize(
     ("raw", "message"),
     [
-        (b'{"format":"chronos-experiment-report","format":"ambiguous"}', "duplicate JSON field"),
-        (b"\\xff", "must be UTF-8"),
+        (
+            b'{"format":"chronos-experiment-report","format":"ambiguous"}',
+            "duplicate JSON field",
+        ),
+        (b"\xff", "must be UTF-8"),
         (b'{"value":NaN}', "non-standard JSON constant"),
     ],
 )
@@ -393,7 +395,9 @@ def test_report_manifest_requires_an_integer_schema_version(tmp_path):
     manifest["schema_version"] = True
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(EventLogError, match="unsupported experiment report schema version"):
+    with pytest.raises(
+        EventLogError, match="unsupported experiment report schema version"
+    ):
         verify_experiment_report(report_dir)
 
 

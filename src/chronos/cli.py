@@ -223,7 +223,10 @@ def verify_experiment_report(
         raise EventLogError("report root must be a JSON object")
     if document.get("format") != REPORT_FORMAT:
         raise EventLogError("unsupported experiment report format")
-    if type(document.get("schema_version")) is not int or document.get("schema_version") != REPORT_SCHEMA_VERSION:
+    if (
+        type(document.get("schema_version")) is not int
+        or document.get("schema_version") != REPORT_SCHEMA_VERSION
+    ):
         raise EventLogError("unsupported experiment report schema version")
     artifacts = document.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
@@ -240,7 +243,9 @@ def verify_experiment_report(
         expected_summary = entry.get("summary")
         if kind not in {"event_log", "timeline_continuation"}:
             raise EventLogError(f"report artifacts[{index}] has an unsupported kind")
-        relative_path = PurePosixPath(relative_name) if isinstance(relative_name, str) else None
+        relative_path = (
+            PurePosixPath(relative_name) if isinstance(relative_name, str) else None
+        )
         if (
             relative_path is None
             or relative_path.as_posix() != relative_name
