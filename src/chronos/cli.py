@@ -23,6 +23,33 @@ REPORT_FILENAME = "report.json"
 REPORT_FORMAT = "chronos-experiment-report"
 REPORT_SCHEMA_VERSION = 1
 MAX_REPORT_MANIFEST_BYTES = 4 * 1024 * 1024
+MAX_REPORT_JSON_DEPTH = 64
+
+
+def _validate_report_json_depth(source: str, path: Path) -> None:
+    """Reject deeply nested JSON consistently across Python implementations."""
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in source:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            continue
+        if character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > MAX_REPORT_JSON_DEPTH:
+                raise EventLogError(
+                    f"{path}: report JSON nesting exceeds the {MAX_REPORT_JSON_DEPTH}-level limit"
+                )
+        elif character in "]}":
+            depth = max(depth - 1, 0)
 
 
 def _load_report_manifest(path: Path) -> Any:
@@ -52,6 +79,7 @@ def _load_report_manifest(path: Path) -> Any:
     except UnicodeDecodeError as exc:
         raise EventLogError(f"{path}: report manifest must be UTF-8") from exc
 
+    _validate_report_json_depth(source, path)
     try:
         return json.loads(
             source,

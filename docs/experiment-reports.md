@@ -38,7 +38,7 @@ For a local trust decision, supply the expected PEM public key:
 
     chronos verify-report review-bundle --trusted-public-key /secure/path/reviewer-ed25519-public.pem
 
-Verification checks that each bundled file remains within the supported size limit, matches its recorded SHA-256 digest, parses under the supported Chronos schema, and reproduces the report's metadata summary. The report manifest itself is limited to 4 MiB; it must be UTF-8 JSON with unique object keys and standard JSON constants, and excessive nesting is rejected. Artifact references must be canonical direct-child paths under artifacts/, resolve inside the report directory, and not alias another listed artifact. A successful result confirms the integrity and structural validity of the included files relative to the report.
+Verification checks that each bundled file remains within the supported size limit, matches its recorded SHA-256 digest, parses under the supported Chronos schema, and reproduces the report's metadata summary. The report manifest itself is limited to 4 MiB; it must be UTF-8 JSON with unique object keys and standard JSON constants, and nesting deeper than 64 JSON containers is rejected. Artifact references must be canonical direct-child paths under artifacts/, resolve inside the report directory, and not alias another listed artifact. A successful result confirms the integrity and structural validity of the included files relative to the report.
 
 ## Render a reviewer document
 

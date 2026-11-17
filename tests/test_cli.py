@@ -11,7 +11,7 @@ from chronos import (
     write_timeline_continuation,
     write_event_log,
 )
-from chronos.cli import MAX_REPORT_MANIFEST_BYTES, main, verify_experiment_report
+from chronos.cli import MAX_REPORT_JSON_DEPTH, MAX_REPORT_MANIFEST_BYTES, main, verify_experiment_report
 from chronos.event_log import EventLog, EventLogError
 
 
@@ -368,7 +368,8 @@ def test_report_manifest_rejects_ambiguous_or_invalid_json(tmp_path, raw, messag
 def test_report_manifest_rejects_excessive_nesting(tmp_path):
     report_dir = tmp_path / "deep-manifest"
     report_dir.mkdir()
-    nested = b'{"value":' + b"[" * 2000 + b"0" + b"]" * 2000 + b"}"
+    depth = MAX_REPORT_JSON_DEPTH + 1
+    nested = b'{"value":' + b"[" * depth + b"0" + b"]" * depth + b"}"
     (report_dir / "report.json").write_bytes(nested)
 
     with pytest.raises(EventLogError, match="nesting is excessive"):
@@ -448,3 +449,18 @@ def test_report_manifest_rejects_symlink_escape_when_supported(tmp_path):
 
     with pytest.raises(EventLogError, match="resolves outside the report directory"):
         verify_experiment_report(report_dir)
+
+
+
+def test_report_manifest_depth_guard_ignores_brackets_inside_strings(tmp_path):
+    event_log = _build_event_log(tmp_path)
+    report_dir = tmp_path / "bracket-text"
+    from chronos.cli import create_experiment_report
+
+    create_experiment_report(report_dir, event_logs=[event_log])
+    manifest_path = report_dir / "report.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifacts"][0]["original_name"] = "[" * 1000 + "]" * 1000
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert verify_experiment_report(report_dir)["verified"] is True
