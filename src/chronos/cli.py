@@ -46,7 +46,7 @@ def _validate_report_json_depth(source: str, path: Path) -> None:
             depth += 1
             if depth > MAX_REPORT_JSON_DEPTH:
                 raise EventLogError(
-                    f"{path}: report JSON nesting exceeds the {MAX_REPORT_JSON_DEPTH}-level limit"
+                    f"{path}: report JSON nesting is excessive (maximum {MAX_REPORT_JSON_DEPTH} levels)"
                 )
         elif character in "]}":
             depth = max(depth - 1, 0)
