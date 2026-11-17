@@ -17,7 +17,7 @@ Chronos should make it possible for an engineer or reviewer to:
 
 ## Current guarantees
 
-The portable report workflow validates each supported event log or timeline continuation using the Chronos reader; copies it into a newly created report directory; validates the copy and compares its metadata summary with the source; records a SHA-256 digest; and verifies report format/version, relative artifact paths, file size, digest, runtime validity, and metadata summary on receipt.
+The portable report workflow validates each supported event log or timeline continuation using the Chronos reader; copies it into a newly created report directory; validates the copy and compares its metadata summary with the source; records a SHA-256 digest; and verifies report format/version, relative artifact paths, file size, digest, runtime validity, and metadata summary on receipt. The report manifest itself is limited to 4 MiB and must be UTF-8 JSON with unique object keys and standard JSON constants; excessive nesting is rejected. Artifact references must use canonical direct-child paths under artifacts/ and resolve to distinct files inside the report directory.
 
 When a detached signature is present, Chronos verifies an Ed25519 signature over the exact bytes of report.json. The manifest binds the relative artifact paths, SHA-256 digests, artifact types, and metadata summaries. Signature validity is reported separately from trust status.
 
@@ -42,6 +42,7 @@ The report verifier is designed for bounded artifact validation and review. It i
 | Accidental artifact corruption in transit | SHA-256 comparison against report manifest | Does not authenticate the sender |
 | Manifest or artifact replacement | Detached Ed25519 signature over the manifest; reviewer-supplied trusted key | No protection if the private key is compromised or the reviewer accepts an unknown key |
 | Malformed or unsupported artifact | Chronos reader validation | Parser and runtime defects remain possible |
+| Malformed or ambiguous report manifest | 4 MiB bounded read; UTF-8 decoding; duplicate-key and non-standard-constant rejection; excessive nesting handled as a controlled error | Does not eliminate parser defects or every concurrent filesystem race |
 | Path traversal through manifest paths | Restricts paths to a direct child of artifacts/ and checks resolved containment | Does not protect against every concurrent filesystem race or hostile filesystem |
 | Oversized artifact input | Supported artifact size limit | Resource exhaustion may still arise elsewhere |
 | Sensitive payload disclosure | Metadata summaries omit payload/state values | Original event logs and continuations are included unchanged and may contain sensitive data |

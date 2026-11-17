@@ -12,7 +12,7 @@ import tempfile
 from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, NoReturn
 
 from chronos import __version__
 from chronos.continuation import read_timeline_continuation
@@ -22,6 +22,46 @@ from chronos.event_log import DEFAULT_MAX_LOG_BYTES, EventLogError, read_event_l
 REPORT_FILENAME = "report.json"
 REPORT_FORMAT = "chronos-experiment-report"
 REPORT_SCHEMA_VERSION = 1
+MAX_REPORT_MANIFEST_BYTES = 4 * 1024 * 1024
+
+
+def _load_report_manifest(path: Path) -> Any:
+    """Read a bounded, unambiguous UTF-8 report manifest."""
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise EventLogError(f"{path}: duplicate JSON field {key!r}")
+            result[key] = value
+        return result
+
+    def reject_constant(value: str) -> NoReturn:
+        raise EventLogError(f"{path}: non-standard JSON constant {value!r}")
+
+    try:
+        with path.open("rb") as stream:
+            raw = stream.read(MAX_REPORT_MANIFEST_BYTES + 1)
+    except OSError as exc:
+        raise EventLogError(f"cannot read report manifest {path}: {exc}") from exc
+    if len(raw) > MAX_REPORT_MANIFEST_BYTES:
+        raise EventLogError(
+            f"{path}: report manifest exceeds the {MAX_REPORT_MANIFEST_BYTES}-byte limit"
+        )
+    try:
+        source = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise EventLogError(f"{path}: report manifest must be UTF-8") from exc
+
+    try:
+        return json.loads(
+            source,
+            object_pairs_hook=reject_duplicates,
+            parse_constant=reject_constant,
+        )
+    except json.JSONDecodeError as exc:
+        raise EventLogError(f"{path}: invalid report JSON: {exc}") from exc
+    except RecursionError as exc:
+        raise EventLogError(f"{path}: report JSON nesting is excessive") from exc
 
 
 def inspect_event_log(path: str | Path) -> dict[str, object]:
@@ -178,21 +218,19 @@ def verify_experiment_report(
     """Validate every bundled artifact, its digest, and its recorded metadata."""
     root = Path(report_dir)
     report_path = root / REPORT_FILENAME
-    try:
-        document: Any = json.loads(report_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise EventLogError(f"{report_path}: invalid report JSON: {exc}") from exc
+    document = _load_report_manifest(report_path)
     if not isinstance(document, dict):
         raise EventLogError("report root must be a JSON object")
     if document.get("format") != REPORT_FORMAT:
         raise EventLogError("unsupported experiment report format")
-    if document.get("schema_version") != REPORT_SCHEMA_VERSION:
+    if type(document.get("schema_version")) is not int or document.get("schema_version") != REPORT_SCHEMA_VERSION:
         raise EventLogError("unsupported experiment report schema version")
     artifacts = document.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
         raise EventLogError("report must contain at least one artifact")
 
     root_resolved = root.resolve()
+    resolved_artifact_paths: set[Path] = set()
     for index, entry in enumerate(artifacts):
         if not isinstance(entry, dict):
             raise EventLogError(f"report artifacts[{index}] must be an object")
@@ -202,11 +240,14 @@ def verify_experiment_report(
         expected_summary = entry.get("summary")
         if kind not in {"event_log", "timeline_continuation"}:
             raise EventLogError(f"report artifacts[{index}] has an unsupported kind")
+        relative_path = PurePosixPath(relative_name) if isinstance(relative_name, str) else None
         if (
-            not isinstance(relative_name, str)
+            relative_path is None
+            or relative_path.as_posix() != relative_name
             or "\\" in relative_name
-            or PurePosixPath(relative_name).parts[:1] != ("artifacts",)
-            or len(PurePosixPath(relative_name).parts) != 2
+            or relative_path.parts[:1] != ("artifacts",)
+            or len(relative_path.parts) != 2
+            or relative_path.parts[1] in {"", ".", ".."}
         ):
             raise EventLogError(f"report artifacts[{index}] has an unsafe artifact path")
 
@@ -216,8 +257,12 @@ def verify_experiment_report(
             raise EventLogError(f"report artifacts[{index}] has no metadata summary")
 
         artifact_path = root / relative_name
-        if not artifact_path.resolve().is_relative_to(root_resolved):
+        resolved_artifact_path = artifact_path.resolve()
+        if not resolved_artifact_path.is_relative_to(root_resolved):
             raise EventLogError(f"report artifacts[{index}] resolves outside the report directory")
+        if resolved_artifact_path in resolved_artifact_paths:
+            raise EventLogError(f"report artifacts[{index}] duplicates another artifact path")
+        resolved_artifact_paths.add(resolved_artifact_path)
         if artifact_path.stat().st_size > DEFAULT_MAX_LOG_BYTES:
             raise EventLogError(f"{artifact_path}: exceeds the supported artifact size")
         actual_hash = _sha256_file(artifact_path)
@@ -271,7 +316,7 @@ def render_experiment_report(
         trusted_public_key=trusted_public_key,
     )
     manifest_path = root / REPORT_FILENAME
-    manifest: Any = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = _load_report_manifest(manifest_path)
     trust_status = str(verification["trust_status"])
     if trust_status == "trusted":
         signature_label = "Signature valid · trusted key match"

@@ -11,7 +11,7 @@ from chronos import (
     write_timeline_continuation,
     write_event_log,
 )
-from chronos.cli import main
+from chronos.cli import MAX_REPORT_MANIFEST_BYTES, main, verify_experiment_report
 from chronos.event_log import EventLog, EventLogError
 
 
@@ -343,3 +343,104 @@ def test_render_report_refuses_tampered_bundle_without_writing_html(tmp_path):
     with pytest.raises(EventLogError, match="SHA-256 digest mismatch"):
         render_experiment_report(report_dir)
     assert not (report_dir / "index.html").exists()
+
+
+
+@pytest.mark.parametrize(
+    ("raw", "message"),
+    [
+        (b'{"format":"chronos-experiment-report","format":"ambiguous"}', "duplicate JSON field"),
+        (b"\\xff", "must be UTF-8"),
+        (b'{"value":NaN}', "non-standard JSON constant"),
+    ],
+)
+def test_report_manifest_rejects_ambiguous_or_invalid_json(tmp_path, raw, message):
+    report_dir = tmp_path / "invalid-manifest"
+    report_dir.mkdir()
+    (report_dir / "report.json").write_bytes(raw)
+
+    with pytest.raises(EventLogError, match=message):
+        verify_experiment_report(report_dir)
+
+
+def test_report_manifest_rejects_excessive_nesting(tmp_path):
+    report_dir = tmp_path / "deep-manifest"
+    report_dir.mkdir()
+    nested = b'{"value":' + b"[" * 2000 + b"0" + b"]" * 2000 + b"}"
+    (report_dir / "report.json").write_bytes(nested)
+
+    with pytest.raises(EventLogError, match="nesting is excessive"):
+        verify_experiment_report(report_dir)
+
+
+def test_report_manifest_has_a_strict_size_limit(tmp_path):
+    report_dir = tmp_path / "oversized-manifest"
+    report_dir.mkdir()
+    (report_dir / "report.json").write_bytes(b" " * (MAX_REPORT_MANIFEST_BYTES + 1))
+
+    with pytest.raises(EventLogError, match="report manifest exceeds"):
+        verify_experiment_report(report_dir)
+
+
+def test_report_manifest_requires_an_integer_schema_version(tmp_path):
+    event_log = _build_event_log(tmp_path)
+    report_dir = tmp_path / "boolean-version"
+    from chronos.cli import create_experiment_report
+
+    create_experiment_report(report_dir, event_logs=[event_log])
+    manifest_path = report_dir / "report.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["schema_version"] = True
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(EventLogError, match="unsupported experiment report schema version"):
+        verify_experiment_report(report_dir)
+
+
+def test_report_manifest_rejects_duplicate_artifact_paths(tmp_path):
+    event_log = _build_event_log(tmp_path)
+    report_dir = tmp_path / "duplicate-artifact"
+    from chronos.cli import create_experiment_report
+
+    create_experiment_report(report_dir, event_logs=[event_log])
+    manifest_path = report_dir / "report.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifacts"].append(dict(manifest["artifacts"][0]))
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(EventLogError, match="duplicates another artifact path"):
+        verify_experiment_report(report_dir)
+
+
+def test_report_manifest_rejects_noncanonical_artifact_paths(tmp_path):
+    event_log = _build_event_log(tmp_path)
+    report_dir = tmp_path / "noncanonical-artifact-path"
+    from chronos.cli import create_experiment_report
+
+    create_experiment_report(report_dir, event_logs=[event_log])
+    manifest_path = report_dir / "report.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifacts"][0]["file"] = "artifacts/./artifact-001-event_log.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(EventLogError, match="unsafe artifact path"):
+        verify_experiment_report(report_dir)
+
+
+def test_report_manifest_rejects_symlink_escape_when_supported(tmp_path):
+    event_log = _build_event_log(tmp_path)
+    report_dir = tmp_path / "symlink-escape"
+    from chronos.cli import create_experiment_report
+
+    create_experiment_report(report_dir, event_logs=[event_log])
+    artifact_path = next((report_dir / "artifacts").iterdir())
+    outside_path = tmp_path / "outside-event-log.json"
+    outside_path.write_bytes(artifact_path.read_bytes())
+    artifact_path.unlink()
+    try:
+        artifact_path.symlink_to(outside_path)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation is unavailable on this runner")
+
+    with pytest.raises(EventLogError, match="resolves outside the report directory"):
+        verify_experiment_report(report_dir)
