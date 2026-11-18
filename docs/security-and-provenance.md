@@ -54,6 +54,10 @@ The report bundle should be treated as potentially sensitive because original ev
 
 The version-1 Ed25519 envelope and exact-byte signing rules are specified in [Signed report format](signed-report-format.md). Signing is optional and uses the cryptography dependency extra. The CLI does not generate or store private keys. There is no online certificate discovery, revocation, expiry, trusted timestamp, organization directory, or automated key rotation.
 
+## Dependency-free core wheel check
+
+The CI distribution verifier installs the built wheel into a fresh virtual environment using `pip install --no-deps`. That smoke environment asserts the `cryptography` package is absent, checks the core package import and `python -m chronos --version`, then calls the signing and verification APIs to ensure both fail with the documented installation hint for the optional `[signing]` extra. This is a packaging regression check—not a test of signature verification or trusted provenance in a dependency-free environment. The full signing test suite runs in the development environment, which installs the signing dependency.
+
 ## Related documentation
 
 - [Command-line interface](cli.md)
