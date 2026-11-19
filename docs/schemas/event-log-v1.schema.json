@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:chronos:schema:event-log-v1",
+  "title": "Chronos event log schema v1",
+  "description": "Wire-format contract for event-log schema version 1. This legacy version has neither an embedded payload-contract registry nor an initial-state record.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "timeline_id",
+    "initial_events",
+    "events",
+    "final_state_digest"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "timeline_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "initial_events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/eventInput"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    },
+    "final_state_digest": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "jsonObject": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "eventInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "time",
+        "event_type",
+        "payload",
+        "parent_event_id"
+      ],
+      "properties": {
+        "time": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "$ref": "#/$defs/jsonObject"
+        },
+        "parent_event_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "time",
+        "sequence",
+        "event_type",
+        "payload",
+        "parent_event_id"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "time": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "$ref": "#/$defs/jsonObject"
+        },
+        "parent_event_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

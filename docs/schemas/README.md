@@ -4,7 +4,9 @@ These JSON Schema documents describe the supported serialized envelopes. They ar
 
 | Artifact | Schema | Compatibility |
 |---|---|---|
-| Event log | [event-log-v3.schema.json](event-log-v3.schema.json) | Event-log v3 only; v1/v2 remain supported by the runtime |
+| Event log v1 | [event-log-v1.schema.json](event-log-v1.schema.json) | Legacy envelope; no payload registry or initial-state record |
+| Event log v2 | [event-log-v2.schema.json](event-log-v2.schema.json) | Adds payload contracts; no initial-state record |
+| Event log v3 | [event-log-v3.schema.json](event-log-v3.schema.json) | Adds the pre-dispatch initial-state record; retains payload contracts |
 | Engine snapshot | [engine-snapshot-v2.schema.json](engine-snapshot-v2.schema.json) | Snapshot v2 envelope; flat v1 is migrated in memory |
 | Timeline continuation | [timeline-continuation-v2.schema.json](timeline-continuation-v2.schema.json) | Continuation v2; v1 remains supported by the runtime |
 
@@ -29,4 +31,4 @@ SHA-256 fields are lowercase 64-character hexadecimal strings. A matching digest
 
 ## Versioning policy
 
-Do not edit a published schema to describe an incompatible wire-format change. Add a new versioned schema document and preserve the existing schema and canonical golden fixtures. Event-log, snapshot, and timeline-continuation versions evolve independently.
+All three supported event-log wire versions have separate schemas and canonical golden tests. Version 1 contains the common event/input records and final digest only; version 2 adds the payload-contract registry; version 3 adds the pre-dispatch initial state. The runtime parser remains the semantic authority and rejects unknown fields for each version. Do not edit a published schema to describe an incompatible wire-format change. Add a new versioned schema document and preserve the existing schemas and canonical golden fixtures. Event-log, snapshot, and timeline-continuation versions evolve independently.
