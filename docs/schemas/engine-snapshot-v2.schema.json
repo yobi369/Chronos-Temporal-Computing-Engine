@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:chronos:schema:engine-snapshot-v2",
+  "title": "Chronos engine snapshot schema v2",
+  "description": "Wire-format contract for version-2 engine snapshots. Flat version-1 snapshots are accepted by the runtime migration path but are not represented by this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schema_version",
+    "metadata",
+    "engine"
+  ],
+  "properties": {
+    "format": {
+      "const": "chronos.engine-snapshot"
+    },
+    "schema_version": {
+      "const": 2
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "writer",
+        "migration"
+      ],
+      "properties": {
+        "writer": {
+          "const": "chronos"
+        },
+        "migration": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "v1-to-v2",
+            null
+          ]
+        }
+      }
+    },
+    "engine": {
+      "$ref": "#/$defs/engine"
+    }
+  },
+  "$defs": {
+    "jsonObject": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "time",
+        "sequence",
+        "event_type",
+        "payload",
+        "parent_event_id"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "time": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "$ref": "#/$defs/jsonObject"
+        },
+        "parent_event_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timeline_id",
+        "current_time",
+        "next_sequence",
+        "queue",
+        "history",
+        "state",
+        "logical_clock_value"
+      ],
+      "properties": {
+        "timeline_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "current_time": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "next_sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "queue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/event"
+          }
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/event"
+          }
+        },
+        "state": {
+          "$ref": "#/$defs/jsonObject"
+        },
+        "logical_clock_value": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

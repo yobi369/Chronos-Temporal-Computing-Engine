@@ -1,9 +1,12 @@
 from collections import defaultdict
 from collections.abc import Iterable
+
 from chronos.events import Event
+
 
 class CausalGraph:
     """Directed provenance graph derived from declared event-parent links."""
+
     def __init__(self, events: Iterable[Event]) -> None:
         self._parents: dict[str, str | None] = {}
         self._children: dict[str, set[str]] = defaultdict(set)

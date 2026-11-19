@@ -1,4 +1,5 @@
 import pytest
+
 from chronos.causality import CausalGraph
 from chronos.events import Event
 

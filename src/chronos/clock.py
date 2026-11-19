@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class LogicalClock:
     """Lamport-style ordering counter, not a physical clock."""
+
     value: int = 0
 
     def __post_init__(self) -> None:
