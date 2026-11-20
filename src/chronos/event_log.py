@@ -86,7 +86,15 @@ class EventInput:
             not isinstance(self.parent_event_id, str) or not self.parent_event_id
         ):
             raise ValueError("input parent_event_id must be a non-empty string or null")
-        object.__setattr__(self, "payload", copy.deepcopy(self.payload))
+        object.__setattr__(
+            self, "payload", copy.deepcopy(object.__getattribute__(self, "payload"))
+        )
+
+    def __getattribute__(self, name: str) -> Any:
+        value = object.__getattribute__(self, name)
+        if name == "payload":
+            return copy.deepcopy(value)
+        return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,8 +120,15 @@ class EventLog:
             object.__setattr__(
                 self, "payload_schemas", MappingProxyType(dict(self.payload_schemas))
             )
-        if isinstance(self.initial_state, dict):
-            object.__setattr__(self, "initial_state", copy.deepcopy(self.initial_state))
+        initial_state = object.__getattribute__(self, "initial_state")
+        if isinstance(initial_state, dict):
+            object.__setattr__(self, "initial_state", copy.deepcopy(initial_state))
+
+    def __getattribute__(self, name: str) -> Any:
+        value = object.__getattribute__(self, name)
+        if name == "initial_state":
+            return copy.deepcopy(value)
+        return value
 
     @classmethod
     def capture(
