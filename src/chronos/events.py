@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -18,3 +19,14 @@ class Event:
             raise ValueError('event_id and event_type must not be empty')
         if self.time < 0 or self.sequence < 0:
             raise ValueError('time and sequence must be non-negative')
+        # Event records expose detached payloads so callers and handlers cannot
+        # mutate the event captured by the scheduler or a persisted history.
+        object.__setattr__(
+            self, "payload", copy.deepcopy(object.__getattribute__(self, "payload"))
+        )
+
+    def __getattribute__(self, name: str) -> Any:
+        value = object.__getattribute__(self, name)
+        if name == "payload":
+            return copy.deepcopy(value)
+        return value
