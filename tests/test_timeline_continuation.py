@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from dataclasses import replace
@@ -100,9 +101,18 @@ print(len(engine.history))
 
 def test_continuation_rejects_checkpoint_and_final_state_tampering():
     _, _, record = build_continuation()
+    encoded = timeline_continuation_to_json(record)
+
+    # Public state reads are detached: mutating a returned view must not alter
+    # the in-memory continuation or its canonical serialization.
     record.checkpoint.state["total"] = 999
+    assert timeline_continuation_to_json(record) == encoded
+
+    # Persisted-record tampering remains detectable at the trust boundary.
+    document = json.loads(encoded)
+    document["checkpoint"]["engine"]["state"]["total"] = 999
     with pytest.raises(EventLogError, match="checkpoint digest"):
-        timeline_continuation_to_json(record)
+        timeline_continuation_from_json(json.dumps(document))
 
     _, _, intact = build_continuation()
     altered = replace(intact, final_state_digest=state_digest({"total": 999}))
