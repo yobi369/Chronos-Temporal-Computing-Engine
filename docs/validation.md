@@ -6,7 +6,7 @@ Chronos is an early-stage research prototype. Current validation targets softwar
 
 The automated suite includes:
 - stable scheduler ordering, rejection of past scheduling, causal-parent identity, unique event IDs and sequence numbers;
-- detached-copy boundaries for scheduled, dispatched, pending, and historical event payloads, preventing caller or handler mutation from silently rewriting engine-owned event records;
+- detached-copy boundaries for scheduled, dispatched, pending, and historical event payloads, plus defensive public reads for Event/EventInput payloads and captured EventLog/EngineSnapshot state;
 - isolated timeline forks and snapshot serialization, strict parsing, and legacy v1-to-v2 migration;
 - canonical event-log round trips with exact golden serialization fixtures for schemas v1, v2 and v3; payload-contract validation; bounded local persistence; atomic-replacement failure behavior; strict malformed-file rejection; and explicit v1-to-v2 and v2-to-v3 migration;
 - timeline-continuation schema v1/v2 round trips, parent-checkpoint and lineage digests, completed and event-boundary partial-fork replay, pending-queue tampering rejection, parent isolation, persistent reload, and fresh-process replay/resumption;
@@ -38,11 +38,11 @@ Schema v2 does not capture continuous-integrator state, arbitrary external drive
 
 Further work includes broader cross-version serialized-fixture guarantees across additional Python implementations, multi-node independent implementations, membership and partition fault injection, additional numerical reference comparisons, and independent reproduction outside hosted CI. Checkpoint process-termination tests do not prove behavior under physical power loss, controller cache loss, or every filesystem and mount configuration.
 
-Replay assumes deterministic registered handlers and explicit initial inputs. It cannot make hidden network, clock, random, filesystem, environment, or global-state dependencies reproducible unless those dependencies are captured or controlled. Event payload copies isolate engine-owned queue/history records, but individual Event payload objects remain mutable; tests do not claim deep immutability of arbitrary Python values.
+Replay assumes deterministic registered handlers and explicit initial inputs. It cannot make hidden network, clock, random, filesystem, environment, or global-state dependencies reproducible unless those dependencies are captured or controlled. Public reads of Event/EventInput payloads and EventLog/EngineSnapshot state now return detached deep copies; focused tests also cover nested TimelineContinuation records. This protects normal API read boundaries but is not a sandbox or a claim of immutability against deliberate introspection into implementation internals. The new cross-platform CI result is required before treating the ownership blocker as closed.
 
 No software test result establishes a claim about the nature of physical time.
 
-## Constructor ownership regression tests
+## Public record read-boundary regression tests
 
-Focused tests now verify that EventInput detaches nested payloads, EventLog detaches caller-supplied input/event/state objects, and EngineSnapshot detaches caller-supplied queue payloads and state. These checks complement scheduler accessor isolation. They do not claim that nested dictionaries exposed from an already-constructed snapshot or event log are deeply immutable; the public contract continues to require treating captured records as read-only.
+`tests/test_record_ownership.py` covers construction-time detachment for Event and EventInput, then mutates nested dictionaries/lists returned from Event, EventInput, EventLog, EngineSnapshot, and TimelineContinuation. The tests assert that canonical event-log/snapshot/continuation serialization is unchanged and that deterministic replay still reproduces the original state/history. These checks preserve the existing schema wire formats; the full CI matrix remains the required verification for this increment.
 
