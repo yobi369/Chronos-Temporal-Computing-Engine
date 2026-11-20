@@ -78,3 +78,7 @@ A wire-format change must introduce a new continuation schema version and preser
 The embedded snapshot and digests provide reproducibility and consistency checks, not cryptographic authenticity. Records are not signed or encrypted, and replay executes caller-registered Python handlers; it is not a sandbox for untrusted code. Handlers must not depend on hidden wall-clock, network, random, environment, or external-file state unless those dependencies are captured as explicit inputs.
 
 Timeline continuations describe branching in Chronos's experiment-defined discrete logical-time model. They do not implement physical time travel, relativistic time dilation, quantum temporal models, or closed timelike curves. Those remain unimplemented research directions.
+
+## Record ownership and read boundaries
+
+A TimelineContinuation copies its checkpoint, branch-input tuple, observed-event tuple, and pending-event tuple when constructed. Its nested EngineSnapshot returns a detached deep copy from the public `state` attribute, while Event and EventInput members return detached deep copies from `payload`. Mutating values obtained through these public reads does not rewrite the continuation's canonical JSON, replay inputs, observed history, or digests. The regression tests exercise nested dict/list mutations across all of these boundaries. This is defensive-copy isolation, not a sandbox or a guarantee against deliberate introspection into Python implementation internals.
