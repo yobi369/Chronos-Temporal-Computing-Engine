@@ -31,7 +31,15 @@ class EngineSnapshot:
         # source objects passed to the constructor from mutating a checkpoint.
         object.__setattr__(self, "queue", copy.deepcopy(self.queue))
         object.__setattr__(self, "history", copy.deepcopy(self.history))
-        object.__setattr__(self, "state", copy.deepcopy(self.state))
+        object.__setattr__(
+            self, "state", copy.deepcopy(object.__getattribute__(self, "state"))
+        )
+
+    def __getattribute__(self, name: str) -> Any:
+        value = object.__getattribute__(self, name)
+        if name == "state":
+            return copy.deepcopy(value)
+        return value
 
 
 class SimulationEngine:

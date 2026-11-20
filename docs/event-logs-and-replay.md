@@ -93,7 +93,7 @@ A matching history and state digest show that a particular handler set reproduce
 
 ## Payload ownership and mutation boundaries
 
-EventInput copies its payload when constructed. EventLog copies its initial-input tuple, observed-event tuple, and initial state when constructed, so later mutation of the original objects supplied by the caller does not silently rewrite the captured record. The event log is still a Python object graph: callers should treat its nested values as read-only after construction. Serialization validates canonical JSON values each time it is requested; a state digest detects replay divergence but does not prevent in-memory mutation or authenticate the file.
+Event and EventInput copy their payloads when constructed and return a fresh deep copy on each public `payload` read. EventLog copies its input/event tuples and initial state at construction, and each public `initial_state` read returns a fresh deep copy. The tuple members are Event/EventInput records with the same detached-payload behavior. Mutating a nested dictionary or list obtained from these public attributes therefore cannot rewrite the in-memory record, its canonical serialization, or a later replay.
 
-This is an ownership boundary, not a deep immutable data model. Do not share a mutable EventLog instance between untrusted callers or concurrent writers. Persist a validated canonical representation when a stable artifact is required.
+This is defensive-copy isolation at the documented public read boundaries, not a security sandbox or a claim of immutability against deliberate reflection into Python implementation internals. Canonical persistence still accepts only the documented JSON-native value subset. A state digest remains a reproducibility checksum, not a signature or authenticity proof. Persist a validated canonical representation when a stable artifact is required.
 
