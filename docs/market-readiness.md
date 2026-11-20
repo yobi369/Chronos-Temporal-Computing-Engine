@@ -33,7 +33,7 @@ Chronos must not skip stages by changing README wording or package classifiers.
 - Preserve event-log schemas v1–v3 and timeline-continuation schemas v1–v2 with immutable golden fixtures.
 - Publish machine-readable payload and record schemas, including required fields, bounds, canonicalization rules, and compatibility behavior.
 - Specify deterministic handler requirements and the exact boundary between recorded inputs and external effects.
-- Extend defensive-copy guarantees across EventLog, continuation, and snapshot construction; add tests proving that caller mutation after capture cannot rewrite serialized history. The scheduler now detaches queued, returned, and historical event copies, but the Event dataclass remains shallowly frozen.
+- Enforce a consistent public read-ownership contract across Event, EventInput, EventLog, EngineSnapshot, and TimelineContinuation. Event/input payload reads and captured-state reads now return defensive deep copies; regression tests verify that mutating returned values cannot change serialization or replay. The full cross-platform CI matrix remains the acceptance gate for this increment.
 - Add adversarial tests for duplicate identifiers, causal-parent inconsistencies, malformed numeric values, excessive nesting/size, duplicate JSON keys, truncated writes, and corrupted checkpoints.
 - Define digest algorithm/version/domain separation and the exact bytes covered by each digest. Digests remain consistency checks, not authenticity proofs.
 
@@ -110,7 +110,7 @@ The following are confirmed by current repository documentation/configuration an
 
 1. Package metadata still declares version 0.5.0 and `Development Status :: 2 - Pre-Alpha`.
 2. README describes an early-stage research project and explicitly limits event-log persistence to a local single-writer protocol.
-3. The scheduler now isolates its internal queue/history from caller mutation through defensive copies, but Event payload objects remain mutable within each detached copy. EventLog, continuation, and snapshot constructor aliasing still need explicit tests and a documented ownership contract.
+3. The public record-read contract now returns defensive deep copies for Event/EventInput payloads and EventLog/EngineSnapshot state. TimelineContinuation inherits those boundaries through its nested checkpoint, input, event, and queue records. New regression tests cover post-capture read mutation, serialization stability, and replay; the full CI matrix must verify this increment before the blocker can be closed.
 4. Worker processing is at-least-once; handlers must be idempotent. HMAC does not encrypt transport.
 5. Distributed membership, leader election, consensus, partition ownership, and multi-node independent validation are not implemented.
 6. Continuations do not capture arbitrary external driver actions or continuous-integrator state.
@@ -140,9 +140,9 @@ A 1.0 candidate is blocked until all applicable items have evidence attached to 
 
 ## Latest ownership-hardening increment
 
-The scheduler, EventInput, EventLog, and EngineSnapshot now detach selected nested values at their construction or API boundaries. Focused regression tests cover caller-owned nested payloads/state for event inputs, event logs, and snapshots. This prevents mutation of the original constructor arguments from silently changing the captured record.
+Event and EventInput now detach payloads at construction and return a fresh deep copy on every public `payload` read. EventLog does the same for `initial_state`; EngineSnapshot does so for `state`. Their tuple collections contain Event/EventInput values with the same payload-read behavior. TimelineContinuation already copies its nested checkpoint, inputs, events, and pending queue at construction; the nested snapshot-state and event/input payload reads are now detached as well. No serialized schema fields or canonical fixtures change.
 
-This does not make the returned EventLog or EngineSnapshot object graphs deeply immutable: nested dictionaries/lists exposed by those records remain mutable. Treat captured records as read-only after construction. A future API design decision is required before 1.0: either private immutable representations with defensive accessors, or a documented mutable-record contract with copy-on-export. The latest verified constructor-boundary state passed the full cross-platform CI matrix in run #179 (commit `cfff46e`). The remaining mutable-container exposure is an explicit API-design issue, not a claim of deep immutability.
+Focused regression tests mutate nested dict/list values returned from Event, EventInput, EventLog, EngineSnapshot, and TimelineContinuation, then assert canonical serialization and replay remain unchanged. This is defensive-copy isolation at documented public read boundaries, not a claim that Python objects are deeply immutable against deliberate reflection into implementation internals. The change awaits the full cross-platform CI matrix before Issue #4 can be closed.
 
 ## Scientific scope boundary
 
