@@ -73,6 +73,10 @@ These empty-checkpoint fixtures isolate the envelope and nested snapshot encodin
 
 A wire-format change must introduce a new continuation schema version and preserve these historical fixtures; do not update an existing golden fixture merely to make a changed serializer pass.
 
+## Local persistence limits
+
+Continuation writes use the same cooperative exclusive sidecar lock as event-log writes. A competing Chronos writer fails immediately; a hard process termination can leave a stale lock that must be checked and removed manually only after confirming no writer remains active. The writer fsyncs the temporary file before replacement but does not currently fsync the containing directory, so no universal power-loss durability guarantee is made. See [the local persistence protocol](persistence.md).
+
 ## Trust and scientific scope
 
 The embedded snapshot and digests provide reproducibility and consistency checks, not cryptographic authenticity. Records are not signed or encrypted, and replay executes caller-registered Python handlers; it is not a sandbox for untrusted code. Handlers must not depend on hidden wall-clock, network, random, environment, or external-file state unless those dependencies are captured as explicit inputs.
