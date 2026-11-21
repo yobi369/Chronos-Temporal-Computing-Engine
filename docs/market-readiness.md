@@ -109,7 +109,7 @@ Only after the core gates pass:
 The following are confirmed by current repository documentation/configuration and should be treated as open work, not assumed complete:
 
 1. Package metadata still declares version 0.5.0 and `Development Status :: 2 - Pre-Alpha`.
-2. README describes an early-stage research project and explicitly limits event-log persistence to a local single-writer protocol.
+2. README describes an early-stage research project and explicitly limits event-log persistence to a local single-writer protocol. Event-log and continuation writers now use cooperative exclusive sidecar locks; stale-lock recovery and directory-entry durability remain open work.
 3. The scheduler now isolates its internal queue/history from caller mutation through defensive copies, but Event payload objects remain mutable within each detached copy. EventLog, continuation, and snapshot constructor aliasing still need explicit tests and a documented ownership contract.
 4. Worker processing is at-least-once; handlers must be idempotent. HMAC does not encrypt transport.
 5. Distributed membership, leader election, consensus, partition ownership, and multi-node independent validation are not implemented.
