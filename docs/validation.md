@@ -36,7 +36,7 @@ Schema v2 does not capture continuous-integrator state, arbitrary external drive
 
 ## Remaining validation work
 
-The local artifact writer lock is cooperative and fails closed when a sidecar already exists. Hard-termination stale-lock recovery, stale temporary-file cleanup, directory fsync where supported, and filesystem-specific durability tests remain incomplete. The current CI tests normal competing-writer rejection and lock cleanup after a simulated replacement failure; they do not prove behavior after physical power loss.
+The local artifact writer lock is cooperative and fails closed when a sidecar already exists. Tests cover same-process competing writes, a second process holding the lock, and manual recovery after the holder is terminated. Stale temporary-file cleanup, directory fsync where supported, and filesystem-specific durability tests remain incomplete. These tests do not prove behavior after physical power loss.
 
 
 Further work includes broader cross-version serialized-fixture guarantees across additional Python implementations, multi-node independent implementations, membership and partition fault injection, additional numerical reference comparisons, and independent reproduction outside hosted CI. Checkpoint process-termination tests do not prove behavior under physical power loss, controller cache loss, or every filesystem and mount configuration.
