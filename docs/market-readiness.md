@@ -39,9 +39,9 @@ Chronos must not skip stages by changing README wording or package classifiers.
 
 ### P0 — Persistence and recovery contract
 
-- Document the current single-writer local-file persistence guarantee precisely.
-- Test concurrent-writer rejection or explicitly enforce the single-writer contract.
-- Exercise interrupted writes, stale temporary files, replacement failures, directory fsync behavior where supported, and recovery after process termination.
+- Document the single-writer local-file persistence guarantee precisely.
+- Enforce cooperative event-log and continuation writer exclusion with an exclusive sidecar lock; focused tests exercise a competing writer at the replacement boundary.
+- Exercise hard-termination stale-lock recovery, stale temporary files, replacement failures, directory fsync behavior where supported, and recovery after process termination.
 - Specify filesystem/platform assumptions; do not claim universal power-loss durability.
 - Define retention, backup, restore, and event-history export/import procedures before any operational deployment profile is called production-ready.
 
