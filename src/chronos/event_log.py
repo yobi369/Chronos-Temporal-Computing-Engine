@@ -15,6 +15,7 @@ from typing import Any
 
 from chronos.engine import SimulationEngine
 from chronos.events import Event
+from chronos._file_lock import exclusive_file_lock
 from chronos.validation import validate_event_log
 
 SCHEMA_VERSION = 3
@@ -570,21 +571,22 @@ def write_event_log(path: str | Path, log: EventLog) -> None:
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     content = (event_log_to_json(log) + "\n").encode("utf-8")
-    file_descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
-    )
-    try:
-        with os.fdopen(file_descriptor, "wb") as temporary:
-            temporary.write(content)
-            temporary.flush()
-            os.fsync(temporary.fileno())
-        os.replace(temporary_name, destination)
-    except BaseException:
+    with exclusive_file_lock(destination, error_factory=EventLogError):
+        file_descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
+        )
         try:
-            os.unlink(temporary_name)
-        except FileNotFoundError:
-            pass
-        raise
+            with os.fdopen(file_descriptor, "wb") as temporary:
+                temporary.write(content)
+                temporary.flush()
+                os.fsync(temporary.fileno())
+            os.replace(temporary_name, destination)
+        except BaseException:
+            try:
+                os.unlink(temporary_name)
+            except FileNotFoundError:
+                pass
+            raise
 
 
 def read_event_log(
