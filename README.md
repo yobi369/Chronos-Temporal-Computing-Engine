@@ -12,7 +12,7 @@ Chronos is an early-stage research software project for deterministic discrete-e
 - Versioned snapshot JSON (v2) with documented in-memory migration from legacy v1.
 - Canonical event-log JSON schemas v1, v2 and v3, with strict parsing and explicit version migrations.
 - Schema-v3 initial-state capture, replay from recorded driver inputs, observed-history comparison and SHA-256 final-state digest checks.
-- Bounded local event-log persistence using temporary-file writes, fsync and atomic replacement.
+- Bounded local event-log and continuation persistence with cooperative exclusive writer locks, same-directory temporary files, file fsync and atomic replacement.
 - Independent schema-v1/v2 fork continuation records with parent-checkpoint digests, branch-local inputs, partial-run pending queues, persistent replay, and final snapshot verification.
 - Payload field contracts, malformed-file rejection, golden serialization fixtures and fresh-process replay tests.
 - Hypothesis property tests and differential checks against a separate sorted-list reference scheduler.
