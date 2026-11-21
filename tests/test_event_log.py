@@ -198,6 +198,31 @@ def test_failed_atomic_replace_preserves_existing_file(tmp_path, monkeypatch):
 
     assert target.read_text(encoding="utf-8") == "previous committed contents"
     assert list(tmp_path.glob(".experiment.json.*.tmp")) == []
+    assert not (tmp_path / ".experiment.json.lock").exists()
+
+
+def test_event_log_writer_rejects_a_competing_writer(tmp_path, monkeypatch):
+    import chronos.event_log as event_log_module
+
+    engine, inputs = build_run()
+    log = EventLog.capture(engine, inputs)
+    target = tmp_path / "experiment.json"
+    real_replace = event_log_module.os.replace
+    competing_attempts = 0
+
+    def competing_replace(source, destination):
+        nonlocal competing_attempts
+        competing_attempts += 1
+        with pytest.raises(EventLogError, match="writer lock"):
+            write_event_log(target, log)
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(event_log_module.os, "replace", competing_replace)
+    write_event_log(target, log)
+
+    assert competing_attempts == 1
+    assert read_event_log(target) == log
+    assert not (tmp_path / ".experiment.json.lock").exists()
 
 
 def test_event_log_rejects_malformed_in_memory_event_fields():
