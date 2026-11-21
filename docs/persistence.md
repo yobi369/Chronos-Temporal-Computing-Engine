@@ -37,4 +37,4 @@ Writer locking does not change event-log schemas v1/v2/v3, snapshot schemas v1/v
 
 ## Verification
 
-The focused persistence tests exercise an overlapping writer attempt at the replacement boundary for both event logs and timeline continuations, plus lock cleanup after a simulated replacement failure. The full CI matrix is required before treating this change as verified. Process-kill stale-lock recovery, directory fsync, and filesystem-specific power-loss behavior remain separate work.
+The focused persistence tests exercise an overlapping writer attempt at the replacement boundary for both event logs and timeline continuations, plus lock cleanup after a simulated replacement failure. A subprocess test holds a real lock while a second process attempts a write, then terminates the holder and verifies that the stale lock blocks writes until it is manually removed. The full CI matrix is required before treating this change as verified. Directory fsync and filesystem-specific power-loss behavior remain separate work.
