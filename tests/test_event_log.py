@@ -215,6 +215,7 @@ def test_event_log_writer_rejects_a_competing_writer(tmp_path, monkeypatch):
         competing_attempts += 1
         with pytest.raises(EventLogError, match="writer lock"):
             write_event_log(target, log)
+        assert (tmp_path / ".experiment.json.lock").exists()
         return real_replace(source, destination)
 
     monkeypatch.setattr(event_log_module.os, "replace", competing_replace)
