@@ -85,7 +85,7 @@ The test suite includes exact canonical serialization fixtures for schema v1 (wi
 
 ## Persistence limits
 
-The writer stores to a temporary file in the destination directory, flushes and fsyncs that file, then atomically replaces the target. A failed replacement leaves the previous target intact and removes the temporary file. The reader enforces a configurable byte limit before parsing. This is a local single-writer file operation, not a multi-writer database, distributed event store, signed audit log, or general power-loss durability guarantee. Filesystem and storage-controller behavior still require deployment-specific testing.
+The writer first acquires an exclusive sibling sidecar lock, then stores to a temporary file in the destination directory, flushes and fsyncs that file, and atomically replaces the target. A competing Chronos writer fails immediately instead of racing the replacement. Normal failures release the lock and remove the temporary file; a hard process termination can leave a stale lock that requires operator inspection and manual removal. The reader enforces a configurable byte limit before parsing. This remains a local single-writer file operation, not a multi-writer database, distributed event store, signed audit log, or general power-loss durability guarantee. The containing directory is not currently fsynced. See [the local persistence protocol](persistence.md) for recovery steps and filesystem limitations.
 
 ## Verification boundary
 

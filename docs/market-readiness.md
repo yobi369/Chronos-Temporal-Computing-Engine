@@ -39,9 +39,9 @@ Chronos must not skip stages by changing README wording or package classifiers.
 
 ### P0 — Persistence and recovery contract
 
-- Document the current single-writer local-file persistence guarantee precisely.
-- Test concurrent-writer rejection or explicitly enforce the single-writer contract.
-- Exercise interrupted writes, stale temporary files, replacement failures, directory fsync behavior where supported, and recovery after process termination.
+- Document the single-writer local-file persistence guarantee precisely.
+- Enforce cooperative event-log and continuation writer exclusion with an exclusive sidecar lock; focused tests exercise a competing writer at the replacement boundary.
+- Exercise hard-termination stale-lock recovery, stale temporary files, replacement failures, directory fsync behavior where supported, and recovery after process termination.
 - Specify filesystem/platform assumptions; do not claim universal power-loss durability.
 - Define retention, backup, restore, and event-history export/import procedures before any operational deployment profile is called production-ready.
 
@@ -109,7 +109,7 @@ Only after the core gates pass:
 The following are confirmed by current repository documentation/configuration and should be treated as open work, not assumed complete:
 
 1. Package metadata still declares version 0.5.0 and `Development Status :: 2 - Pre-Alpha`.
-2. README describes an early-stage research project and explicitly limits event-log persistence to a local single-writer protocol.
+2. README describes an early-stage research project and explicitly limits event-log persistence to a local single-writer protocol. Event-log and continuation writers now use cooperative exclusive sidecar locks; stale-lock recovery and directory-entry durability remain open work.
 3. The scheduler now isolates its internal queue/history from caller mutation through defensive copies, but Event payload objects remain mutable within each detached copy. EventLog, continuation, and snapshot constructor aliasing still need explicit tests and a documented ownership contract.
 4. Worker processing is at-least-once; handlers must be idempotent. HMAC does not encrypt transport.
 5. Distributed membership, leader election, consensus, partition ownership, and multi-node independent validation are not implemented.

@@ -198,6 +198,83 @@ def test_failed_atomic_replace_preserves_existing_file(tmp_path, monkeypatch):
 
     assert target.read_text(encoding="utf-8") == "previous committed contents"
     assert list(tmp_path.glob(".experiment.json.*.tmp")) == []
+    assert not (tmp_path / ".experiment.json.lock").exists()
+
+
+def test_event_log_writer_rejects_a_competing_writer(tmp_path, monkeypatch):
+    import chronos.event_log as event_log_module
+
+    engine, inputs = build_run()
+    log = EventLog.capture(engine, inputs)
+    target = tmp_path / "experiment.json"
+    real_replace = event_log_module.os.replace
+    competing_attempts = 0
+
+    def competing_replace(source, destination):
+        nonlocal competing_attempts
+        competing_attempts += 1
+        with pytest.raises(EventLogError, match="writer lock"):
+            write_event_log(target, log)
+        assert (tmp_path / ".experiment.json.lock").exists()
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(event_log_module.os, "replace", competing_replace)
+    write_event_log(target, log)
+
+    assert competing_attempts == 1
+    assert read_event_log(target) == log
+    assert not (tmp_path / ".experiment.json.lock").exists()
+
+
+def test_event_log_writer_lock_excludes_another_process_and_allows_manual_recovery(tmp_path):
+    import subprocess
+    import sys
+    import time
+
+    engine, inputs = build_run()
+    log = EventLog.capture(engine, inputs)
+    target = tmp_path / "experiment.json"
+    ready = tmp_path / "writer-ready"
+    lock_path = tmp_path / ".experiment.json.lock"
+    script = """
+import sys
+import time
+from pathlib import Path
+from chronos._file_lock import exclusive_file_lock
+from chronos.event_log import EventLogError
+
+target = Path(sys.argv[1])
+ready = Path(sys.argv[2])
+with exclusive_file_lock(target, error_factory=EventLogError):
+    ready.write_text("ready", encoding="utf-8")
+    time.sleep(30)
+"""
+    process = subprocess.Popen(
+        [sys.executable, "-c", script, str(target), str(ready)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while not ready.exists() and time.monotonic() < deadline:
+            if process.poll() is not None:
+                stderr = process.stderr.read() if process.stderr is not None else ""
+                raise AssertionError(f"lock holder exited before acquiring the lock: {stderr}")
+            time.sleep(0.01)
+        assert ready.exists(), "lock holder did not acquire the writer lock"
+
+        with pytest.raises(EventLogError, match="writer lock"):
+            write_event_log(target, log)
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            process.wait(timeout=10)
+
+    assert lock_path.exists()
+    lock_path.unlink()
+    write_event_log(target, log)
+    assert read_event_log(target) == log
 
 
 def test_event_log_rejects_malformed_in_memory_event_fields():

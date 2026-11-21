@@ -31,6 +31,7 @@ from chronos.event_log import (
 )
 from chronos.events import Event
 from chronos.snapshot_io import snapshot_from_json, snapshot_to_json
+from chronos._file_lock import exclusive_file_lock
 from chronos.timeline import Timeline, _fork_snapshot
 
 CONTINUATION_SCHEMA_VERSION = 2
@@ -527,21 +528,22 @@ def write_timeline_continuation(
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     content = (timeline_continuation_to_json(record) + "\n").encode("utf-8")
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
-    )
-    try:
-        with os.fdopen(descriptor, "wb") as temporary:
-            temporary.write(content)
-            temporary.flush()
-            os.fsync(temporary.fileno())
-        os.replace(temporary_name, destination)
-    except BaseException:
+    with exclusive_file_lock(destination, error_factory=TimelineContinuationError):
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
+        )
         try:
-            os.unlink(temporary_name)
-        except FileNotFoundError:
-            pass
-        raise
+            with os.fdopen(descriptor, "wb") as temporary:
+                temporary.write(content)
+                temporary.flush()
+                os.fsync(temporary.fileno())
+            os.replace(temporary_name, destination)
+        except BaseException:
+            try:
+                os.unlink(temporary_name)
+            except FileNotFoundError:
+                pass
+            raise
 
 
 def read_timeline_continuation(

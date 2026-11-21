@@ -8,7 +8,7 @@ The automated suite includes:
 - stable scheduler ordering, rejection of past scheduling, causal-parent identity, unique event IDs and sequence numbers;
 - detached-copy boundaries for scheduled, dispatched, pending, and historical event payloads, preventing caller or handler mutation from silently rewriting engine-owned event records;
 - isolated timeline forks and snapshot serialization, strict parsing, and legacy v1-to-v2 migration;
-- canonical event-log round trips with exact golden serialization fixtures for schemas v1, v2 and v3; payload-contract validation; bounded local persistence; atomic-replacement failure behavior; strict malformed-file rejection; and explicit v1-to-v2 and v2-to-v3 migration;
+- canonical event-log round trips with exact golden serialization fixtures for schemas v1, v2 and v3; payload-contract validation; bounded local persistence; competing-writer rejection and lock cleanup after replacement failure; strict malformed-file rejection; and explicit v1-to-v2 and v2-to-v3 migration;
 - timeline-continuation schema v1/v2 round trips, parent-checkpoint and lineage digests, completed and event-boundary partial-fork replay, pending-queue tampering rejection, parent isolation, persistent reload, and fresh-process replay/resumption;
 - deterministic replay from schema-v3 initial state and explicit inputs, observed-history comparison, final-state digest comparison, randomized replay properties, longer-history reproducibility, and a fresh-interpreter subprocess replay;
 - property-based scheduler checks and differential comparison with a separate sorted-list reference scheduler;
@@ -35,6 +35,9 @@ The continuation tests cover schema-v1 completed-fork compatibility and schema-v
 Schema v2 does not capture continuous-integrator state, arbitrary external driver calls interleaved with dispatch, or side effects outside engine-managed state. Those require explicit input and checkpoint semantics before they can be represented as deterministic continuation data.
 
 ## Remaining validation work
+
+The local artifact writer lock is cooperative and fails closed when a sidecar already exists. Tests cover same-process competing writes, a second process holding the lock, and manual recovery after the holder is terminated. Stale temporary-file cleanup, directory fsync where supported, and filesystem-specific durability tests remain incomplete. These tests do not prove behavior after physical power loss.
+
 
 Further work includes broader cross-version serialized-fixture guarantees across additional Python implementations, multi-node independent implementations, membership and partition fault injection, additional numerical reference comparisons, and independent reproduction outside hosted CI. Checkpoint process-termination tests do not prove behavior under physical power loss, controller cache loss, or every filesystem and mount configuration.
 
