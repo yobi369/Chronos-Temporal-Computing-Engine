@@ -36,7 +36,7 @@ def exclusive_file_lock(
         lock_file = os.fdopen(descriptor, "w", encoding="ascii")
         descriptor = -1
         with lock_file:
-            lock_file.write(f"pid={os.getpid()}\\n")
+            lock_file.write(f"pid={os.getpid()}\n")
             lock_file.flush()
             os.fsync(lock_file.fileno())
         yield
