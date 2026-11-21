@@ -369,6 +369,7 @@ def test_continuation_writer_rejects_a_competing_writer(tmp_path, monkeypatch):
         competing_attempts += 1
         with pytest.raises(EventLogError, match="writer lock"):
             write_timeline_continuation(target, record)
+        assert (tmp_path / ".branch.json.lock").exists()
         return real_replace(source, destination)
 
     monkeypatch.setattr(continuation_module.os, "replace", competing_replace)
