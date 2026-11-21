@@ -353,3 +353,27 @@ def test_failed_atomic_replace_preserves_existing_continuation(tmp_path, monkeyp
 
     assert target.read_text(encoding="utf-8") == "previous committed continuation"
     assert list(tmp_path.glob(".branch.json.*.tmp")) == []
+    assert not (tmp_path / ".branch.json.lock").exists()
+
+
+def test_continuation_writer_rejects_a_competing_writer(tmp_path, monkeypatch):
+    import chronos.continuation as continuation_module
+
+    _, _, record = build_continuation()
+    target = tmp_path / "branch.json"
+    real_replace = continuation_module.os.replace
+    competing_attempts = 0
+
+    def competing_replace(source, destination):
+        nonlocal competing_attempts
+        competing_attempts += 1
+        with pytest.raises(EventLogError, match="writer lock"):
+            write_timeline_continuation(target, record)
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(continuation_module.os, "replace", competing_replace)
+    write_timeline_continuation(target, record)
+
+    assert competing_attempts == 1
+    assert read_timeline_continuation(target) == record
+    assert not (tmp_path / ".branch.json.lock").exists()
