@@ -25,9 +25,11 @@ Do not delete a lock merely because a write appears slow. Removing a live lock w
 
 ## Atomic replacement and durability boundary
 
-The writer encodes and validates the complete canonical JSON document before writing. It creates the temporary file in the destination directory, writes the bytes, flushes and fsyncs the temporary file, then uses `os.replace` to replace the destination. A normal replacement failure preserves the previous destination and removes the temporary file; the lock is then released.
+The writer encodes and validates the complete canonical JSON document before writing. It creates the temporary file in the destination directory, writes the bytes, flushes and fsyncs the temporary file, then uses `os.replace` to replace the destination. On POSIX platforms it next opens and fsyncs the containing directory before releasing the writer lock. Windows skips this directory-sync step because Python's standard library does not provide a portable directory-handle fsync there.
 
-The current protocol does **not** fsync the containing directory after replacement. It therefore does not claim that the rename is durable across every power-loss scenario, storage-controller cache, filesystem, mount option, or operating system. The exact guarantees of `os.replace`, file fsync, and directory metadata persistence must be tested on the target filesystem. Additional directory-fsync and crash-recovery work remains a release-readiness item.
+A failure before `os.replace` preserves the previous destination and removes the temporary file. A directory-fsync failure occurs **after** replacement: the writer raises the underlying `OSError`, but the destination may already contain the new complete document. Callers must inspect/read the destination before retrying rather than assuming the write was rolled back. The lock is released in either case.
+
+Directory fsync improves persistence of the rename on supported POSIX filesystems, but it does not establish universal power-loss durability. Storage-controller caches, filesystem and mount behavior, virtualized storage, and platform-specific guarantees still require deployment-specific testing. No physical power-loss guarantee is claimed.
 
 Readers enforce a configurable byte limit before parsing and validate UTF-8, canonical JSON constraints, schema version, payload contracts, and event-history structure. Readers do not take the writer lock: same-directory replacement is intended to let them observe either the previous complete file or the new complete file on filesystems that provide the expected replacement semantics.
 
