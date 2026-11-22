@@ -51,7 +51,6 @@ def exclusive_file_lock(
                 pass
 
 
-
 def fsync_directory(directory: Path) -> None:
     """Persist directory-entry changes where the platform exposes directory fsync.
 
