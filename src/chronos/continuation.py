@@ -31,7 +31,7 @@ from chronos.event_log import (
 )
 from chronos.events import Event
 from chronos.snapshot_io import snapshot_from_json, snapshot_to_json
-from chronos._file_lock import exclusive_file_lock
+from chronos._file_lock import exclusive_file_lock, fsync_directory
 from chronos.timeline import Timeline, _fork_snapshot
 
 CONTINUATION_SCHEMA_VERSION = 2
@@ -538,6 +538,7 @@ def write_timeline_continuation(
                 temporary.flush()
                 os.fsync(temporary.fileno())
             os.replace(temporary_name, destination)
+            fsync_directory(destination.parent)
         except BaseException:
             try:
                 os.unlink(temporary_name)
