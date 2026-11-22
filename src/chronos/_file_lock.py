@@ -49,3 +49,22 @@ def exclusive_file_lock(
                 lock_path.unlink()
             except FileNotFoundError:
                 pass
+
+
+
+def fsync_directory(directory: Path) -> None:
+    """Persist directory-entry changes where the platform exposes directory fsync.
+
+    Windows does not provide a portable directory-handle fsync through Python's
+    standard library, so this operation is skipped there. On POSIX, failures are
+    surfaced to the caller; after an atomic replace, the destination may already
+    contain the new file even if this durability step fails.
+    """
+    if os.name == "nt":
+        return
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    descriptor = os.open(directory, flags)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
