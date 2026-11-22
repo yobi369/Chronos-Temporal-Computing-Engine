@@ -6,12 +6,13 @@ import os
 from chronos._file_lock import fsync_directory
 
 
+def _unexpected_open(*args, **kwargs):
+    raise AssertionError("directory handles are not opened on Windows")
+
+
 def test_fsync_directory_uses_supported_platform_behavior(tmp_path, monkeypatch):
     if os.name == "nt":
-        def unexpected_open(*args, **kwargs):
-            raise AssertionError("directory handles are not opened on Windows")
-
-        monkeypatch.setattr(os, "open", unexpected_open)
+        monkeypatch.setattr(os, "open", _unexpected_open)
         fsync_directory(tmp_path)
         return
 
