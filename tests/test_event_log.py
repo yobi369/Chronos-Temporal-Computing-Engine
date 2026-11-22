@@ -435,3 +435,48 @@ def test_event_log_detaches_constructor_owned_inputs_events_and_state():
     assert log.initial_events[0].payload == {"nested": {"items": [1]}}
     assert log.events[0].payload == {"nested": {"items": [2]}}
     assert log.initial_state == {"nested": {"value": 3}}
+
+
+
+def test_event_log_writer_syncs_parent_directory_after_replace(tmp_path, monkeypatch):
+    import chronos.event_log as event_log_module
+
+    engine, inputs = build_run()
+    log = EventLog.capture(engine, inputs)
+    target = tmp_path / "experiment.json"
+    calls = []
+    real_replace = event_log_module.os.replace
+
+    def tracked_replace(source, destination):
+        real_replace(source, destination)
+        calls.append("replace")
+
+    def tracked_directory_sync(directory):
+        assert directory == target.parent
+        calls.append("directory-fsync")
+
+    monkeypatch.setattr(event_log_module.os, "replace", tracked_replace)
+    monkeypatch.setattr(event_log_module, "fsync_directory", tracked_directory_sync)
+    write_event_log(target, log)
+
+    assert calls == ["replace", "directory-fsync"]
+    assert read_event_log(target) == log
+
+
+def test_event_log_reports_directory_sync_failure_after_replacement(tmp_path, monkeypatch):
+    import chronos.event_log as event_log_module
+
+    engine, inputs = build_run()
+    log = EventLog.capture(engine, inputs)
+    target = tmp_path / "experiment.json"
+
+    def fail_directory_sync(directory):
+        raise OSError("simulated directory fsync failure")
+
+    monkeypatch.setattr(event_log_module, "fsync_directory", fail_directory_sync)
+    with pytest.raises(OSError, match="simulated directory fsync failure"):
+        write_event_log(target, log)
+
+    # Replacement already happened; callers must inspect the destination before retrying.
+    assert read_event_log(target) == log
+    assert not (tmp_path / ".experiment.json.lock").exists()
