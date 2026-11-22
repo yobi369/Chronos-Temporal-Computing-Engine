@@ -15,7 +15,7 @@ from typing import Any
 
 from chronos.engine import SimulationEngine
 from chronos.events import Event
-from chronos._file_lock import exclusive_file_lock
+from chronos._file_lock import exclusive_file_lock, fsync_directory
 from chronos.validation import validate_event_log
 
 SCHEMA_VERSION = 3
@@ -581,6 +581,7 @@ def write_event_log(path: str | Path, log: EventLog) -> None:
                 temporary.flush()
                 os.fsync(temporary.fileno())
             os.replace(temporary_name, destination)
+            fsync_directory(destination.parent)
         except BaseException:
             try:
                 os.unlink(temporary_name)
