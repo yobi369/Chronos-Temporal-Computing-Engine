@@ -437,7 +437,6 @@ def test_event_log_detaches_constructor_owned_inputs_events_and_state():
     assert log.initial_state == {"nested": {"value": 3}}
 
 
-
 def test_event_log_writer_syncs_parent_directory_after_replace(tmp_path, monkeypatch):
     import chronos.event_log as event_log_module
 
