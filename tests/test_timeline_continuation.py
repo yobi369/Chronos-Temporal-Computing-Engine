@@ -380,7 +380,6 @@ def test_continuation_writer_rejects_a_competing_writer(tmp_path, monkeypatch):
     assert not (tmp_path / ".branch.json.lock").exists()
 
 
-
 def test_continuation_writer_syncs_parent_directory_after_replace(tmp_path, monkeypatch):
     import chronos.continuation as continuation_module
 
