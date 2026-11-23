@@ -75,7 +75,7 @@ A wire-format change must introduce a new continuation schema version and preser
 
 ## Local persistence limits
 
-Continuation writes use the same cooperative exclusive sidecar lock as event-log writes. A competing Chronos writer fails immediately; a hard process termination can leave a stale lock that must be checked and removed manually only after confirming no writer remains active. The writer fsyncs the temporary file before replacement but does not currently fsync the containing directory, so no universal power-loss durability guarantee is made. See [the local persistence protocol](persistence.md).
+Continuation writes use the same cooperative exclusive sidecar lock as event-log writes. A competing Chronos writer fails immediately; a hard process termination can leave a stale lock that must be checked and removed manually only after confirming no writer remains active. On POSIX, the writer fsyncs the temporary file and containing directory around atomic replacement; Windows skips directory fsync. After manually recovering a stale lock, operators may explicitly call `cleanup_stale_temporary_files` to remove matching regular temporary files older than the configured threshold. Cleanup is never automatic, and no universal power-loss durability guarantee is made. See [the local persistence protocol](persistence.md).
 
 ## Trust and scientific scope
 
