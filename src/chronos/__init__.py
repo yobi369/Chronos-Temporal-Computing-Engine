@@ -17,6 +17,7 @@ from chronos.engine import SimulationEngine
 from chronos.event_log import (EventInput, EventLog, EventLogError, PayloadSchema, ReplayMismatchError,
     event_log_from_json, event_log_to_json, read_event_log, replay_event_log,
     state_digest, write_event_log)
+from chronos.persistence import cleanup_stale_temporary_files
 from chronos.event_log_migration import (
     migrate_event_log_v1_to_v2,
     migrate_event_log_v2_to_v3,
@@ -38,7 +39,7 @@ from chronos.vector_clock import VectorClock
 
 __all__ = [
     "Always", "AlwaysWithin", "And", "Atom", "Boolean", "Compare", "CausalGraph", "CausalReconciliationError",
-    "CheckpointError", "CheckpointStore", "DistributedEvent", "DurableMessageStore", "Event", "Expr", "Field", "EventInput",
+    "CheckpointError", "CheckpointStore", "cleanup_stale_temporary_files", "DistributedEvent", "DurableMessageStore", "Event", "Expr", "Field", "EventInput",
     "EventLog", "EventLogError", "PayloadSchema", "Eventually", "EventuallyWithin", "ExperimentManifest",
     "HybridIntegrationResult", "IntegrationResult", "Literal", "LogicalClock", "ModelCheckResult", "ModelCheckingLimitError",
     "Next", "Not", "OrderProbability", "Or", "ProbabilityEstimate", "Release", "RootEvent", "ReplayMismatchError", "SNAPSHOT_SCHEMA_VERSION",
