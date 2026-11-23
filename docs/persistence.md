@@ -19,9 +19,13 @@ Chronos deliberately does not remove a pre-existing lock automatically. An opera
 1. inspect the lock file and its recorded PID;
 2. confirm that no process is still writing the destination (accounting for PID reuse and the host's process namespace);
 3. only then remove the stale `.<destination-name>.lock` file;
-4. inspect and remove abandoned `.<destination-name>.*.tmp` files only after confirming they are not active writer files.
+4. after the stale lock is removed, use the explicit cleanup API below if abandoned temporary files need removal. Do not delete a lock merely because a write appears slow. Removing a live lock would permit overlapping replacements and defeat the single-writer guarantee.
 
-Do not delete a lock merely because a write appears slow. Removing a live lock would permit overlapping replacements and defeat the single-writer guarantee.
+## Explicit stale-temporary-file cleanup
+
+`cleanup_stale_temporary_files(path, minimum_age_seconds=86_400)` is an operator-invoked recovery helper exported from `chronos`. It is **never** called automatically by event-log or continuation readers/writers. It acquires the same destination sidecar lock and fails closed if a lock already exists. It considers only regular files named `.<destination-name>.*.tmp` whose modification time is at least the requested age; symlinks, directories, fresh files, and unrelated names are ignored. The default minimum age is 24 hours, and the function returns the sorted tuple of removed filenames.
+
+Use it only after inspecting the stale lock, confirming its PID is no longer writing, and manually removing that stale lock. The helper does not remove locks. The lock coordinates Chronos writers only: do not run cleanup while a non-Chronos process may be using the same temporary-file naming convention in that directory. If directory fsync fails after unlinking, files may already be gone even though the helper raises; inspect the directory before retrying.
 
 ## Atomic replacement and durability boundary
 
@@ -39,4 +43,4 @@ Writer locking does not change event-log schemas v1/v2/v3, snapshot schemas v1/v
 
 ## Verification
 
-The focused persistence tests exercise an overlapping writer attempt at the replacement boundary for both event logs and timeline continuations, lock cleanup after simulated replacement failures, and directory-fsync ordering plus post-replacement error handling. A subprocess test holds a real lock while a second process attempts a write, then terminates the holder and verifies that the stale lock blocks writes until it is manually removed. The full CI matrix is required before treating this change as verified. Filesystem-specific power-loss behavior remains separate work.
+The focused persistence tests exercise an overlapping writer attempt at the replacement boundary for both event logs and timeline continuations, lock cleanup after simulated replacement failures, directory-fsync ordering, and post-replacement error handling. A subprocess test holds a real lock while a second process attempts a write, then terminates the holder and verifies that the stale lock blocks writes until it is manually removed. Explicit cleanup tests cover age filtering, exact destination matching, symlink/directory exclusion, active-lock rejection, deterministic results, and post-unlink directory-sync errors. Filesystem-specific power-loss behavior remains separate work.
