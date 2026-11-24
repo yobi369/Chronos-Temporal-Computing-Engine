@@ -24,20 +24,16 @@ def test_fsync_directory_uses_supported_platform_behavior(tmp_path, monkeypatch)
 def test_lock_release_preserves_a_replacement_sidecar(tmp_path):
     destination = tmp_path / "experiment.json"
     lock_path = tmp_path / ".experiment.json.lock"
+    replacement = b"replacement lock with non-UTF8 metadata: \xff\xfe"
 
     with exclusive_file_lock(
         destination,
         error_factory=lambda message: RuntimeError(message),
     ):
         lock_path.unlink()
-        lock_path.write_text(
-            "pid=another-writer\nowner=replacement\n",
-            encoding="ascii",
-        )
+        lock_path.write_bytes(replacement)
 
-    assert lock_path.read_text(encoding="ascii") == (
-        "pid=another-writer\nowner=replacement\n"
-    )
+    assert lock_path.read_bytes() == replacement
     with pytest.raises(RuntimeError, match="writer lock already exists"):
         with exclusive_file_lock(
             destination,
