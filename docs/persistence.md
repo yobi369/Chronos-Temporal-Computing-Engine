@@ -4,7 +4,9 @@ Chronos persists event logs and timeline continuations as versioned canonical JS
 
 ## Writer exclusion
 
-Before replacing a destination, the event-log and continuation writers create a sibling sidecar lock named `.<destination-name>.lock` using exclusive file creation (`O_CREAT | O_EXCL`). The lock records the creating process ID. The lock is held while the writer creates and fsyncs a same-directory temporary file and atomically replaces the destination.
+Before replacing a destination, the event-log and continuation writers create a sibling sidecar lock named `.<destination-name>.lock` using exclusive file creation (`O_CREAT | O_EXCL`). The lock records the creating process ID and a per-acquisition owner marker. The lock is held while the writer creates and fsyncs a same-directory temporary file and atomically replaces the destination.
+
+On normal release, Chronos removes the sidecar only when its owner marker still matches the current acquisition. This avoids deleting a replacement lock if an operator or external process removed and recreated the path while the original writer was still active. It is a defensive check, not a hostile-process security boundary or a substitute for leaving active locks untouched.
 
 If the lock already exists, a competing Chronos writer fails immediately with an event-log or continuation validation error. It does not wait, overwrite the lock, or automatically assume that the owner is dead. Callers that want retry behavior must implement bounded retry/backoff outside the persistence API.
 
@@ -43,4 +45,4 @@ Writer locking does not change event-log schemas v1/v2/v3, snapshot schemas v1/v
 
 ## Verification
 
-The focused persistence tests exercise an overlapping writer attempt at the replacement boundary for both event logs and timeline continuations, lock cleanup after simulated replacement failures, directory-fsync ordering, and post-replacement error handling. A subprocess test holds a real lock while a second process attempts a write, then terminates the holder and verifies that the stale lock blocks writes until it is manually removed. Explicit cleanup tests cover age filtering, exact destination matching, symlink/directory exclusion, active-lock rejection, deterministic results, and post-unlink directory-sync errors. Filesystem-specific power-loss behavior remains separate work.
+The focused persistence tests exercise an overlapping writer attempt at the replacement boundary for both event logs and timeline continuations, lock cleanup after simulated replacement failures, directory-fsync ordering, and post-replacement error handling. A subprocess test holds a real lock while a second process attempts a write, then terminates the holder and verifies that the stale lock blocks writes until it is manually removed. Explicit cleanup tests cover age filtering, exact destination matching, symlink/directory exclusion, active-lock rejection, deterministic results, and post-unlink directory-sync errors. The lock-helper tests also verify that a releasing owner does not remove a replacement sidecar. Filesystem-specific power-loss behavior remains separate work.
