@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -18,8 +19,11 @@ def exclusive_file_lock(
     The lock is cooperative: it protects writers that use this helper. A hard
     process termination can leave a stale lock file, which must only be removed
     after an operator confirms that no writer for the destination is active.
+    The owner marker also prevents a normal lock release from deleting a
+    different lock file that replaced this acquisition's sidecar.
     """
     lock_path = destination.with_name(f".{destination.name}.lock")
+    owner_contents = f"pid={os.getpid()}\nowner={secrets.token_hex(16)}\n"
     try:
         descriptor = os.open(
             lock_path,
@@ -36,7 +40,7 @@ def exclusive_file_lock(
         lock_file = os.fdopen(descriptor, "w", encoding="ascii")
         descriptor = -1
         with lock_file:
-            lock_file.write(f"pid={os.getpid()}\n")
+            lock_file.write(owner_contents)
             lock_file.flush()
             os.fsync(lock_file.fileno())
         yield
@@ -45,10 +49,19 @@ def exclusive_file_lock(
             if descriptor >= 0:
                 os.close(descriptor)
         finally:
+            # Do not unlink a replacement lock acquired after an operator or
+            # external process removed this sidecar while the original writer
+            # was still active. Chronos writers never replace an existing lock.
             try:
-                lock_path.unlink()
+                with lock_path.open("r", encoding="ascii") as current_lock:
+                    still_ours = current_lock.read() == owner_contents
             except FileNotFoundError:
-                pass
+                still_ours = False
+            if still_ours:
+                try:
+                    lock_path.unlink()
+                except FileNotFoundError:
+                    pass
 
 
 def fsync_directory(directory: Path) -> None:
