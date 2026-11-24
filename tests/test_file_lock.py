@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import os
 
-from chronos._file_lock import fsync_directory
+import pytest
+
+from chronos._file_lock import exclusive_file_lock, fsync_directory
 
 
 def _unexpected_open(*args, **kwargs):
@@ -17,3 +19,28 @@ def test_fsync_directory_uses_supported_platform_behavior(tmp_path, monkeypatch)
         return
 
     fsync_directory(tmp_path)
+
+
+def test_lock_release_preserves_a_replacement_sidecar(tmp_path):
+    destination = tmp_path / "experiment.json"
+    lock_path = tmp_path / ".experiment.json.lock"
+
+    with exclusive_file_lock(
+        destination,
+        error_factory=lambda message: RuntimeError(message),
+    ):
+        lock_path.unlink()
+        lock_path.write_text(
+            "pid=another-writer\nowner=replacement\n",
+            encoding="ascii",
+        )
+
+    assert lock_path.read_text(encoding="ascii") == (
+        "pid=another-writer\nowner=replacement\n"
+    )
+    with pytest.raises(RuntimeError, match="writer lock already exists"):
+        with exclusive_file_lock(
+            destination,
+            error_factory=lambda message: RuntimeError(message),
+        ):
+            pass
