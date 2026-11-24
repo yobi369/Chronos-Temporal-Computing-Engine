@@ -23,7 +23,9 @@ def exclusive_file_lock(
     different lock file that replaced this acquisition's sidecar.
     """
     lock_path = destination.with_name(f".{destination.name}.lock")
-    owner_contents = f"pid={os.getpid()}\nowner={secrets.token_hex(16)}\n"
+    owner_contents = f"pid={os.getpid()}\nowner={secrets.token_hex(16)}\n".encode(
+        "ascii"
+    )
     try:
         descriptor = os.open(
             lock_path,
@@ -37,7 +39,7 @@ def exclusive_file_lock(
         ) from exc
 
     try:
-        lock_file = os.fdopen(descriptor, "w", encoding="ascii")
+        lock_file = os.fdopen(descriptor, "wb")
         descriptor = -1
         with lock_file:
             lock_file.write(owner_contents)
@@ -53,9 +55,8 @@ def exclusive_file_lock(
             # external process removed this sidecar while the original writer
             # was still active. Chronos writers never replace an existing lock.
             try:
-                with lock_path.open("r", encoding="ascii") as current_lock:
-                    still_ours = current_lock.read() == owner_contents
-            except FileNotFoundError:
+                still_ours = lock_path.read_bytes() == owner_contents
+            except OSError:
                 still_ours = False
             if still_ours:
                 try:
