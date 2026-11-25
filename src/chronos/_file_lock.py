@@ -3,9 +3,61 @@ from __future__ import annotations
 
 import os
 import secrets
+import stat
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+
+
+def _same_regular_file(observed: os.stat_result, expected: os.stat_result) -> bool:
+    return (
+        stat.S_ISREG(observed.st_mode)
+        and observed.st_dev == expected.st_dev
+        and observed.st_ino == expected.st_ino
+    )
+
+
+def _lock_path_matches(
+    lock_path: Path,
+    *,
+    identity: os.stat_result,
+    owner_contents: bytes,
+    allow_partial: bool,
+) -> bool:
+    """Check a lock sidecar without following symlinks or blocking on special files."""
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_NONBLOCK", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        descriptor = os.open(lock_path, flags)
+    except OSError:
+        return False
+
+    try:
+        opened = os.fstat(descriptor)
+        if not _same_regular_file(opened, identity):
+            return False
+        actual = os.read(descriptor, len(owner_contents) + 1)
+    except OSError:
+        return False
+    finally:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+
+    try:
+        current_path = lock_path.lstat()
+    except OSError:
+        return False
+    if not _same_regular_file(current_path, identity):
+        return False
+
+    if allow_partial:
+        return len(actual) <= len(owner_contents) and owner_contents.startswith(actual)
+    return actual == owner_contents
 
 
 @contextmanager
@@ -19,7 +71,7 @@ def exclusive_file_lock(
     The lock is cooperative: it protects writers that use this helper. A hard
     process termination can leave a stale lock file, which must only be removed
     after an operator confirms that no writer for the destination is active.
-    The owner marker also prevents a normal lock release from deleting a
+    The owner marker and file identity prevent a normal release from deleting a
     different lock file that replaced this acquisition's sidecar.
     """
     lock_path = destination.with_name(f".{destination.name}.lock")
@@ -38,6 +90,8 @@ def exclusive_file_lock(
             f"If it is stale, confirm no writer is running before removing {lock_path}"
         ) from exc
 
+    identity = os.fstat(descriptor)
+    initialized = False
     try:
         lock_file = os.fdopen(descriptor, "wb")
         descriptor = -1
@@ -45,19 +99,23 @@ def exclusive_file_lock(
             lock_file.write(owner_contents)
             lock_file.flush()
             os.fsync(lock_file.fileno())
+        initialized = True
         yield
     finally:
         try:
             if descriptor >= 0:
                 os.close(descriptor)
         finally:
-            # Do not unlink a replacement lock acquired after an operator or
-            # external process removed this sidecar while the original writer
-            # was still active. Chronos writers never replace an existing lock.
-            try:
-                still_ours = lock_path.read_bytes() == owner_contents
-            except OSError:
-                still_ours = False
+            # If lock initialization failed part-way through, only a prefix of
+            # our marker may have reached disk. In that case the inode identity
+            # is sufficient to clean up the file we just created. After a
+            # successful initialization, require the complete owner marker.
+            still_ours = _lock_path_matches(
+                lock_path,
+                identity=identity,
+                owner_contents=owner_contents,
+                allow_partial=not initialized,
+            )
             if still_ours:
                 try:
                     lock_path.unlink()
