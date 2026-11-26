@@ -90,7 +90,18 @@ def exclusive_file_lock(
             f"If it is stale, confirm no writer is running before removing {lock_path}"
         ) from exc
 
-    identity = os.fstat(descriptor)
+    try:
+        identity = os.fstat(descriptor)
+    except OSError:
+        # Without the descriptor identity we cannot prove that the path still
+        # names the file created by this acquisition. Close the descriptor but
+        # leave the sidecar in place for explicit operator inspection.
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        raise
+
     initialized = False
     try:
         lock_file = os.fdopen(descriptor, "wb")
