@@ -122,3 +122,42 @@ def test_lock_release_does_not_follow_a_replacement_symlink(tmp_path):
 
     assert lock_path.is_symlink()
     assert target.read_bytes() == b"keep this file"
+
+
+def test_fstat_failure_closes_descriptor_and_preserves_sidecar(tmp_path, monkeypatch):
+    destination = tmp_path / "experiment.json"
+    lock_path = tmp_path / ".experiment.json.lock"
+    real_open = os.open
+    real_fstat = os.fstat
+    created_descriptors = []
+
+    def track_open(path, flags, mode=0o777):
+        descriptor = real_open(path, flags, mode)
+        if path == lock_path:
+            created_descriptors.append(descriptor)
+        return descriptor
+
+    def fail_fstat(descriptor):
+        if descriptor in created_descriptors:
+            raise OSError("simulated lock identity failure")
+        return real_fstat(descriptor)
+
+    monkeypatch.setattr(os, "open", track_open)
+    monkeypatch.setattr(os, "fstat", fail_fstat)
+
+    with pytest.raises(OSError, match="simulated lock identity failure"):
+        with exclusive_file_lock(
+            destination,
+            error_factory=lambda message: RuntimeError(message),
+        ):
+            pytest.fail("lock identity must be established before entering the context")
+
+    assert len(created_descriptors) == 1
+    assert lock_path.exists()
+    assert lock_path.read_bytes() == b""
+    with pytest.raises(OSError):
+        real_fstat(created_descriptors[0])
+
+    # This failure path is deliberately fail-closed: the caller/operator must
+    # inspect and remove the sidecar before another writer can proceed.
+    lock_path.unlink()
