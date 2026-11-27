@@ -85,7 +85,7 @@ The test suite includes exact canonical serialization fixtures for schema v1 (wi
 
 ## Persistence limits
 
-The writer stores to a temporary file in the destination directory, flushes and fsyncs that file, then atomically replaces the target. A failed replacement leaves the previous target intact and removes the temporary file. The reader enforces a configurable byte limit before parsing. This is a local single-writer file operation, not a multi-writer database, distributed event store, signed audit log, or general power-loss durability guarantee. Filesystem and storage-controller behavior still require deployment-specific testing.
+The writer first acquires an exclusive sibling sidecar lock, then stores to a temporary file in the destination directory, flushes and fsyncs that file, and atomically replaces the target. On POSIX it also fsyncs the containing directory before releasing the lock; Windows skips this step. A competing Chronos writer fails immediately instead of racing the replacement. Normal failures release the lock and remove the temporary file; a hard process termination can leave a stale lock and temporary file. After an operator has verified and manually removed a stale lock, `cleanup_stale_temporary_files` can explicitly remove matching regular temporary files older than its age threshold. Cleanup is never automatic. The reader enforces a configurable byte limit before parsing. This remains a local single-writer file operation, not a multi-writer database, distributed event store, signed audit log, or general power-loss durability guarantee. See [the local persistence protocol](persistence.md) for recovery steps and filesystem limitations.
 
 ## Verification boundary
 
@@ -93,7 +93,7 @@ A matching history and state digest show that a particular handler set reproduce
 
 ## Payload ownership and mutation boundaries
 
-EventInput copies its payload when constructed. EventLog copies its initial-input tuple, observed-event tuple, and initial state when constructed, so later mutation of the original objects supplied by the caller does not silently rewrite the captured record. The event log is still a Python object graph: callers should treat its nested values as read-only after construction. Serialization validates canonical JSON values each time it is requested; a state digest detects replay divergence but does not prevent in-memory mutation or authenticate the file.
+This persistence branch is based on `research/deterministic-replay-v1` and does not include the separate public read-isolation implementation proposed in [PR #6](https://github.com/yobi369/Chronos-Temporal-Computing-Engine/pull/6). Some constructors detach caller-owned inputs, but nested payload and state containers remain mutable through public record attributes on this branch. Treat those values as read-only after construction; mutating them can change later serialization or replay inputs. PR #6 adds defensive-copy accessors and focused mutation tests. Do not treat that proposed contract as present in this branch until the PR #6 changes are integrated.
 
-This is an ownership boundary, not a deep immutable data model. Do not share a mutable EventLog instance between untrusted callers or concurrent writers. Persist a validated canonical representation when a stable artifact is required.
+Canonical JSON validation runs when serialization is requested. A state digest detects replay divergence for the state bytes it covers; it does not prevent in-memory mutation or authenticate a file.
 

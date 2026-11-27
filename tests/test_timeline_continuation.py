@@ -353,3 +353,69 @@ def test_failed_atomic_replace_preserves_existing_continuation(tmp_path, monkeyp
 
     assert target.read_text(encoding="utf-8") == "previous committed continuation"
     assert list(tmp_path.glob(".branch.json.*.tmp")) == []
+    assert not (tmp_path / ".branch.json.lock").exists()
+
+
+def test_continuation_writer_rejects_a_competing_writer(tmp_path, monkeypatch):
+    import chronos.continuation as continuation_module
+
+    _, _, record = build_continuation()
+    target = tmp_path / "branch.json"
+    real_replace = continuation_module.os.replace
+    competing_attempts = 0
+
+    def competing_replace(source, destination):
+        nonlocal competing_attempts
+        competing_attempts += 1
+        with pytest.raises(EventLogError, match="writer lock"):
+            write_timeline_continuation(target, record)
+        assert (tmp_path / ".branch.json.lock").exists()
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(continuation_module.os, "replace", competing_replace)
+    write_timeline_continuation(target, record)
+
+    assert competing_attempts == 1
+    assert read_timeline_continuation(target) == record
+    assert not (tmp_path / ".branch.json.lock").exists()
+
+
+def test_continuation_writer_syncs_parent_directory_after_replace(tmp_path, monkeypatch):
+    import chronos.continuation as continuation_module
+
+    _, _, record = build_continuation()
+    target = tmp_path / "branch.json"
+    calls = []
+    real_replace = continuation_module.os.replace
+
+    def tracked_replace(source, destination):
+        real_replace(source, destination)
+        calls.append("replace")
+
+    def tracked_directory_sync(directory):
+        assert directory == target.parent
+        calls.append("directory-fsync")
+
+    monkeypatch.setattr(continuation_module.os, "replace", tracked_replace)
+    monkeypatch.setattr(continuation_module, "fsync_directory", tracked_directory_sync)
+    write_timeline_continuation(target, record)
+
+    assert calls == ["replace", "directory-fsync"]
+    assert read_timeline_continuation(target) == record
+
+
+def test_continuation_reports_directory_sync_failure_after_replacement(tmp_path, monkeypatch):
+    import chronos.continuation as continuation_module
+
+    _, _, record = build_continuation()
+    target = tmp_path / "branch.json"
+
+    def fail_directory_sync(directory):
+        raise OSError("simulated directory fsync failure")
+
+    monkeypatch.setattr(continuation_module, "fsync_directory", fail_directory_sync)
+    with pytest.raises(OSError, match="simulated directory fsync failure"):
+        write_timeline_continuation(target, record)
+
+    assert read_timeline_continuation(target) == record
+    assert not (tmp_path / ".branch.json.lock").exists()

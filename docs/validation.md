@@ -6,9 +6,9 @@ Chronos is an early-stage research prototype. Current validation targets softwar
 
 The automated suite includes:
 - stable scheduler ordering, rejection of past scheduling, causal-parent identity, unique event IDs and sequence numbers;
-- detached-copy boundaries for scheduled, dispatched, pending, and historical event payloads, preventing caller or handler mutation from silently rewriting engine-owned event records;
+- constructor-time copies for selected captured records. Nested public record attributes remain mutable on this branch and must be treated as read-only; defensive-copy read accessors are proposed separately in [PR #6](https://github.com/yobi369/Chronos-Temporal-Computing-Engine/pull/6);
 - isolated timeline forks and snapshot serialization, strict parsing, and legacy v1-to-v2 migration;
-- canonical event-log round trips with exact golden serialization fixtures for schemas v1, v2 and v3; payload-contract validation; bounded local persistence; atomic-replacement failure behavior; strict malformed-file rejection; and explicit v1-to-v2 and v2-to-v3 migration;
+- canonical event-log round trips with exact golden serialization fixtures for schemas v1, v2 and v3; payload-contract validation; bounded local persistence; competing-writer rejection, lock cleanup after replacement failure, explicit stale-temporary-file recovery, and directory-fsync error handling; strict malformed-file rejection; and explicit v1-to-v2 and v2-to-v3 migration;
 - timeline-continuation schema v1/v2 round trips, parent-checkpoint and lineage digests, completed and event-boundary partial-fork replay, pending-queue tampering rejection, parent isolation, persistent reload, and fresh-process replay/resumption;
 - deterministic replay from schema-v3 initial state and explicit inputs, observed-history comparison, final-state digest comparison, randomized replay properties, longer-history reproducibility, and a fresh-interpreter subprocess replay;
 - property-based scheduler checks and differential comparison with a separate sorted-list reference scheduler;
@@ -36,13 +36,16 @@ Schema v2 does not capture continuous-integrator state, arbitrary external drive
 
 ## Remaining validation work
 
+The local artifact writer lock is cooperative and fails closed when a sidecar already exists. Tests cover same-process competing writes, a second process holding the lock, and manual recovery after the holder is terminated. Event-log and continuation writers fsync their containing directory after atomic replacement on POSIX; Windows skips that step. Focused tests cover call ordering and the post-replacement error boundary. An explicit, age-bounded cleanup API now removes only matching old regular temporary files while holding the same lock; it is never invoked automatically. Filesystem-specific durability tests remain incomplete, and these tests do not prove behavior after physical power loss.
+
+
 Further work includes broader cross-version serialized-fixture guarantees across additional Python implementations, multi-node independent implementations, membership and partition fault injection, additional numerical reference comparisons, and independent reproduction outside hosted CI. Checkpoint process-termination tests do not prove behavior under physical power loss, controller cache loss, or every filesystem and mount configuration.
 
-Replay assumes deterministic registered handlers and explicit initial inputs. It cannot make hidden network, clock, random, filesystem, environment, or global-state dependencies reproducible unless those dependencies are captured or controlled. Event payload copies isolate engine-owned queue/history records, but individual Event payload objects remain mutable; tests do not claim deep immutability of arbitrary Python values.
+Replay assumes deterministic registered handlers and explicit initial inputs. It cannot make hidden network, clock, random, filesystem, environment, or global-state dependencies reproducible unless those dependencies are captured or controlled. On this persistence branch, constructor-time copies do not make nested values immutable: public payload/state attributes remain mutable. The defensive-copy accessors proposed in [PR #6](https://github.com/yobi369/Chronos-Temporal-Computing-Engine/pull/6) are not included in this branch yet.
 
 No software test result establishes a claim about the nature of physical time.
 
 ## Constructor ownership regression tests
 
-Focused tests now verify that EventInput detaches nested payloads, EventLog detaches caller-supplied input/event/state objects, and EngineSnapshot detaches caller-supplied queue payloads and state. These checks complement scheduler accessor isolation. They do not claim that nested dictionaries exposed from an already-constructed snapshot or event log are deeply immutable; the public contract continues to require treating captured records as read-only.
+Focused tests on this branch cover constructor-time detachment and persistence behavior; they do not establish defensive-copy read isolation for Event/EventInput payloads, EventLog initial state, EngineSnapshot state, or nested continuation records. That separate acceptance is covered by PR #6 and must be integrated before this documentation can claim the full read-isolation contract. Python values are not recursively immutable, and defensive copies are not a security sandbox.
 

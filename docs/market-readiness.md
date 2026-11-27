@@ -33,15 +33,15 @@ Chronos must not skip stages by changing README wording or package classifiers.
 - Preserve event-log schemas v1–v3 and timeline-continuation schemas v1–v2 with immutable golden fixtures.
 - Publish machine-readable payload and record schemas, including required fields, bounds, canonicalization rules, and compatibility behavior.
 - Specify deterministic handler requirements and the exact boundary between recorded inputs and external effects.
-- Extend defensive-copy guarantees across EventLog, continuation, and snapshot construction; add tests proving that caller mutation after capture cannot rewrite serialized history. The scheduler now detaches queued, returned, and historical event copies, but the Event dataclass remains shallowly frozen.
+- Maintain defensive-copy boundaries for Event/EventInput payload reads, EventLog initial state, EngineSnapshot state, and nested continuation records. Tests must prove that mutation of retrieved copies cannot rewrite serialized history; this is not a claim of recursive immutability.
 - Add adversarial tests for duplicate identifiers, causal-parent inconsistencies, malformed numeric values, excessive nesting/size, duplicate JSON keys, truncated writes, and corrupted checkpoints.
 - Define digest algorithm/version/domain separation and the exact bytes covered by each digest. Digests remain consistency checks, not authenticity proofs.
 
 ### P0 — Persistence and recovery contract
 
-- Document the current single-writer local-file persistence guarantee precisely.
-- Test concurrent-writer rejection or explicitly enforce the single-writer contract.
-- Exercise interrupted writes, stale temporary files, replacement failures, directory fsync behavior where supported, and recovery after process termination.
+- Document the single-writer local-file persistence guarantee precisely.
+- Enforce cooperative event-log and continuation writer exclusion with an exclusive sidecar lock; focused tests exercise a competing writer at the replacement boundary.
+- Exercise hard-termination stale-lock recovery, explicit age-bounded stale-temporary-file cleanup, replacement failures, directory fsync behavior where supported, and recovery after process termination.
 - Specify filesystem/platform assumptions; do not claim universal power-loss durability.
 - Define retention, backup, restore, and event-history export/import procedures before any operational deployment profile is called production-ready.
 
@@ -109,8 +109,8 @@ Only after the core gates pass:
 The following are confirmed by current repository documentation/configuration and should be treated as open work, not assumed complete:
 
 1. Package metadata still declares version 0.5.0 and `Development Status :: 2 - Pre-Alpha`.
-2. README describes an early-stage research project and explicitly limits event-log persistence to a local single-writer protocol.
-3. The scheduler now isolates its internal queue/history from caller mutation through defensive copies, but Event payload objects remain mutable within each detached copy. EventLog, continuation, and snapshot constructor aliasing still need explicit tests and a documented ownership contract.
+2. README describes an early-stage research project and explicitly limits event-log persistence to a local single-writer protocol. Event-log and continuation writers use cooperative exclusive sidecar locks and POSIX directory fsync; stale locks still require manual inspection/recovery, while old temporary files have an explicit opt-in cleanup helper. Filesystem-specific durability remains open work.
+3. Normal public reads of Event/EventInput payloads, EventLog initial state, and EngineSnapshot state return defensive deep copies; continuation records detach nested records. Retrieved copies remain mutable, but mutating them does not alter engine-owned records through those accessors. This is not a recursively immutable object model.
 4. Worker processing is at-least-once; handlers must be idempotent. HMAC does not encrypt transport.
 5. Distributed membership, leader election, consensus, partition ownership, and multi-node independent validation are not implemented.
 6. Continuations do not capture arbitrary external driver actions or continuous-integrator state.
@@ -140,9 +140,7 @@ A 1.0 candidate is blocked until all applicable items have evidence attached to 
 
 ## Latest ownership-hardening increment
 
-The scheduler, EventInput, EventLog, and EngineSnapshot now detach selected nested values at their construction or API boundaries. Focused regression tests cover caller-owned nested payloads/state for event inputs, event logs, and snapshots. This prevents mutation of the original constructor arguments from silently changing the captured record.
-
-This does not make the returned EventLog or EngineSnapshot object graphs deeply immutable: nested dictionaries/lists exposed by those records remain mutable. Treat captured records as read-only after construction. A future API design decision is required before 1.0: either private immutable representations with defensive accessors, or a documented mutable-record contract with copy-on-export. The latest verified constructor-boundary state passed the full cross-platform CI matrix in run #179 (commit `cfff46e`). The remaining mutable-container exposure is an explicit API-design issue, not a claim of deep immutability.
+PR [#6](https://github.com/yobi369/Chronos-Temporal-Computing-Engine/pull/6) completes the selected public read-boundary hardening. Event and EventInput payload properties return fresh defensive deep copies; EventLog initial-state and EngineSnapshot state properties do likewise; TimelineContinuation detaches its nested checkpoint, input, observed-event, and pending-event records. Tests cover nested mutation, serialization stability, and replay equivalence. CI [#226](https://github.com/yobi369/Chronos-Temporal-Computing-Engine/actions/runs/44688959484) passed all nine Ubuntu/macOS/Windows × Python 3.11/3.12/3.13 jobs; the representative Ubuntu/Python 3.12 run reported 180 passed and 87.00% coverage. This is a defensive-copy contract at normal public accessors, not recursive immutability or a sandbox. PR #6 remains open for review.
 
 ## Scientific scope boundary
 
