@@ -1,6 +1,6 @@
 # Canonical serialization and state digests
 
-This document defines the compatibility contract used by event-log schemas v1, v2, and v3, snapshot serialization, and timeline-continuation digests. The current contract is identified as `chronos-canonical-json-v1`. It is a Chronos-specific encoding contract, **not** an assertion of RFC 8785 / JSON Canonicalization Scheme (JCS) compatibility.
+This document defines the canonical state-byte contract used by `state_digest` and the state-digest fields in event-log, snapshot, and timeline-continuation records. Other record-level digests (such as continuation checkpoint, history, and full-snapshot digests) cover their own canonical serialized records and are not identified by `STATE_DIGEST_FORMAT`. The current state encoding contract is identified as `chronos-canonical-json-v1`. It is a Chronos-specific encoding contract, **not** an assertion of RFC 8785 / JSON Canonicalization Scheme (JCS) compatibility.
 
 ## Canonical JSON v1
 
