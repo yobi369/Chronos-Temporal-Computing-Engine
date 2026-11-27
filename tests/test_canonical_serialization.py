@@ -29,7 +29,7 @@ def test_unicode_nested_and_float_digest_vector_is_byte_exact():
         "é": "naïve",
         "a": {"β": 2},
     }
-    expected = '{"a":{"β":2},"z":[true,null,-0.0,1e-07],"é":"naïve"}'.encode("utf-8")
+    expected = '{"a":{"β":2},"z":[true,null,-0.0,1e-07],"é":"naïve"}'.encode()
 
     assert canonical_json_bytes(state) == expected
     assert state_digest(state) == (
