@@ -14,9 +14,22 @@ from chronos.continuation import (
 )
 from chronos.distributed import CausalReconciliationError, DistributedEvent, reconcile_events
 from chronos.engine import SimulationEngine
-from chronos.event_log import (EventInput, EventLog, EventLogError, PayloadSchema, ReplayMismatchError,
-    event_log_from_json, event_log_to_json, read_event_log, replay_event_log,
-    state_digest, write_event_log)
+from chronos.event_log import (
+    CANONICAL_JSON_FORMAT,
+    STATE_DIGEST_FORMAT,
+    EventInput,
+    EventLog,
+    EventLogError,
+    PayloadSchema,
+    ReplayMismatchError,
+    canonical_json_bytes,
+    event_log_from_json,
+    event_log_to_json,
+    read_event_log,
+    replay_event_log,
+    state_digest,
+    write_event_log,
+)
 from chronos.event_log_migration import (
     migrate_event_log_v1_to_v2,
     migrate_event_log_v2_to_v3,
@@ -37,7 +50,7 @@ from chronos.validation import validate_event_log
 from chronos.vector_clock import VectorClock
 
 __all__ = [
-    "Always", "AlwaysWithin", "And", "Atom", "Boolean", "Compare", "CausalGraph", "CausalReconciliationError",
+    "Always", "AlwaysWithin", "And", "Atom", "Boolean", "CANONICAL_JSON_FORMAT", "Compare", "CausalGraph", "CausalReconciliationError",
     "CheckpointError", "CheckpointStore", "DistributedEvent", "DurableMessageStore", "Event", "Expr", "Field", "EventInput",
     "EventLog", "EventLogError", "PayloadSchema", "Eventually", "EventuallyWithin", "ExperimentManifest",
     "HybridIntegrationResult", "IntegrationResult", "Literal", "LogicalClock", "ModelCheckResult", "ModelCheckingLimitError",
@@ -47,7 +60,7 @@ __all__ = [
     "read_timeline_continuation", "replay_timeline_continuation",
     "timeline_continuation_from_json", "timeline_continuation_to_json",
     "write_timeline_continuation",
-    "WorkerClient", "WorkerProtocolError", "WorkerServer", "canonical_independent_trace", "integrate_to_root", "propagate_order_probabilities", "sign_message", "symbolic_bounded_check", "verify_message", "bounded_model_check", "evaluate", "event_log_from_json", "event_log_to_json",
+    "WorkerClient", "WorkerProtocolError", "WorkerServer", "STATE_DIGEST_FORMAT", "canonical_independent_trace", "canonical_json_bytes", "integrate_to_root", "propagate_order_probabilities", "sign_message", "symbolic_bounded_check", "verify_message", "bounded_model_check", "evaluate", "event_log_from_json", "event_log_to_json",
     "integrate_adaptive_rk4", "integrate_rk4", "manifest_from_json", "migrate_v1_to_v2", "migrate_event_log_v1_to_v2", "migrate_event_log_v2_to_v3",
     "must_precede", "possible_orders", "read_event_log", "reconcile_events",
     "replay_event_log", "rk4_step", "snapshot_from_json", "snapshot_to_json",
