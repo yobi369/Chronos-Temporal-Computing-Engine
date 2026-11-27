@@ -25,7 +25,7 @@ In particular, the payload_schemas registry in event-log v3 is Chronos's compact
 
 ## Canonicalization and digests
 
-JSON Schema does not define the byte representation used by Chronos digests. The runtime's canonicalization contract is documented in [event logs and replay](../event-logs-and-replay.md): UTF-8, lexicographically sorted object keys, compact separators, finite JSON-native values, and no implicit coercions. This is not a claim of RFC 8785/JCS compatibility.
+JSON Schema does not define the byte representation used by Chronos digests. The exact Canonical JSON v1 and state-digest v1 contracts, including published byte/digest vectors and the absence of a domain-separation prefix, are documented in [canonical serialization](../canonical-serialization.md). The [event-log guide](../event-logs-and-replay.md) describes how those bytes are used by replay.
 
 SHA-256 fields are lowercase 64-character hexadecimal strings. A matching digest is a reproducibility consistency check, not a digital signature or authenticity guarantee.
 
