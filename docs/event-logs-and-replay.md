@@ -20,9 +20,9 @@ Chronos canonical JSON is defined by this implementation's stable encoding rules
 - Only JSON-native values: null, booleans, integers, finite floats, strings, arrays, and objects with string keys.
 - Non-finite numbers, non-string keys, tuples, custom objects, invalid UTF-8 text, and duplicate object keys are rejected rather than silently coerced.
 
-This is a documented Chronos serialization contract, not a claim of full RFC 8785/JCS interoperability. Consumers that need cross-language digest agreement must implement and test these exact rules or adopt a separately specified canonicalization standard.
+This is a documented Chronos serialization contract, not a claim of full RFC 8785/JCS interoperability. Consumers that need cross-language digest agreement must implement and test these exact rules or adopt a separately specified canonicalization standard. The public `canonical_json_bytes(value)` helper returns the exact UTF-8 encoding; the formal byte and digest contract plus golden vectors are in [canonical serialization](canonical-serialization.md).
 
-The final-state digest is SHA-256 over the canonical JSON representation of the engine's state dictionary. It is a reproducibility checksum, not a signature, semantic-equivalence proof, or tamper-proof provenance record. Event-log files are not digitally signed.
+The final-state digest is SHA-256 over the canonical JSON representation of the engine's state dictionary. It is a reproducibility checksum, not a signature, semantic-equivalence proof, or tamper-proof provenance record. Event-log files are not digitally signed. The current digest covers only the canonical state object; it has no domain-separation prefix and does not include event inputs or history.
 
 ## Payload contracts
 
