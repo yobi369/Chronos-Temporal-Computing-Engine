@@ -24,6 +24,8 @@ SUPPORTED_SCHEMA_VERSIONS = frozenset(
     {LEGACY_SCHEMA_VERSION, PAYLOAD_SCHEMA_VERSION, SCHEMA_VERSION}
 )
 DEFAULT_MAX_LOG_BYTES = 16 * 1024 * 1024
+CANONICAL_JSON_FORMAT = "chronos-canonical-json-v1"
+STATE_DIGEST_FORMAT = "sha256(chronos-canonical-json-v1)"
 PAYLOAD_TYPES = frozenset({"array", "boolean", "integer", "null", "number", "object", "string"})
 
 
@@ -181,12 +183,16 @@ def _canonical_json(value: Any) -> str:
         raise EventLogError(f"value is not canonical JSON data: {exc}") from exc
 
 
+def canonical_json_bytes(value: Any) -> bytes:
+    """Return the UTF-8 bytes defined by the Chronos canonical JSON v1 contract."""
+    return _canonical_json(value).encode("utf-8")
+
+
 def state_digest(state: dict[str, Any]) -> str:
     """Return SHA-256 over canonical JSON state; rejects non-object or non-JSON values."""
     if not isinstance(state, dict) or any(not isinstance(key, str) for key in state):
         raise EventLogError("state must be a JSON object with string keys")
-    encoded = _canonical_json(state).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return hashlib.sha256(canonical_json_bytes(state)).hexdigest()
 
 
 def _event_to_dict(event: Event) -> dict[str, Any]:
