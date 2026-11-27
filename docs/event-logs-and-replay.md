@@ -93,5 +93,7 @@ A matching history and state digest show that a particular handler set reproduce
 
 ## Payload ownership and mutation boundaries
 
-Event and EventInput payload reads return fresh defensive deep copies. EventLog initial-state reads and EngineSnapshot state reads also return detached copies; continuation records copy their nested checkpoint, input, observed-event, and pending-event records. Mutating a value returned through these documented accessors therefore does not rewrite the engine-owned record. This is a defensive-copy API contract, not a recursively immutable Python object model or a sandbox against deliberate access to implementation internals. Serialization validates canonical JSON values each time it is requested; a state digest detects replay divergence but does not authenticate the file.
+This persistence branch is based on `research/deterministic-replay-v1` and does not include the separate public read-isolation implementation proposed in [PR #6](https://github.com/yobi369/Chronos-Temporal-Computing-Engine/pull/6). Some constructors detach caller-owned inputs, but nested payload and state containers remain mutable through public record attributes on this branch. Treat those values as read-only after construction; mutating them can change later serialization or replay inputs. PR #6 adds defensive-copy accessors and focused mutation tests. Do not treat that proposed contract as present in this branch until the PR #6 changes are integrated.
+
+Canonical JSON validation runs when serialization is requested. A state digest detects replay divergence for the state bytes it covers; it does not prevent in-memory mutation or authenticate a file.
 
