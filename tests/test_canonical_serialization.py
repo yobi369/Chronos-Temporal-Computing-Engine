@@ -55,7 +55,7 @@ def test_canonical_json_preserves_unicode_normalization_and_numeric_types():
 
     assert canonical_json_bytes({"value": 1}) == b'{"value":1}'
     assert canonical_json_bytes({"value": 1.0}) == b'{"value":1.0}'
-    assert state_digest({"value": 1}) != state_digest({"value": 1.0}')
+    assert state_digest({"value": 1}) != state_digest({"value": 1.0})
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
