@@ -45,6 +45,19 @@ def test_canonical_bytes_and_digest_ignore_object_insertion_order():
     assert state_digest(left) == state_digest(right)
 
 
+def test_canonical_json_preserves_unicode_normalization_and_numeric_types():
+    composed = "é"
+    decomposed = "e\u0301"
+
+    assert canonical_json_bytes({"value": composed}) == b'{"value":"\xc3\xa9"}'
+    assert canonical_json_bytes({"value": decomposed}) == b'{"value":"e\xcc\x81"}'
+    assert state_digest({"value": composed}) != state_digest({"value": decomposed})
+
+    assert canonical_json_bytes({"value": 1}) == b'{"value":1}'
+    assert canonical_json_bytes({"value": 1.0}) == b'{"value":1.0}'
+    assert state_digest({"value": 1}) != state_digest({"value": 1.0}')
+
+
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 def test_canonical_bytes_reject_non_finite_numbers(value):
     with pytest.raises(EventLogError, match="non-finite"):
