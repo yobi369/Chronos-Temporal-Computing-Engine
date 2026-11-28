@@ -13,7 +13,7 @@ The implementation validates the value before encoding and then uses Python's st
 - Only JSON-native values are accepted: null, booleans, integers, finite floats, strings, lists, and dictionaries with string keys. Tuples, custom objects, non-string keys, and invalid UTF-8 strings are rejected. Values are not silently coerced.
 - Duplicate object keys are rejected by the parser before a record is constructed.
 
-Chronos does not normalize Unicode (for example, NFC and NFD strings remain distinct). Float spelling follows the supported Python JSON encoder behavior; negative zero is retained as `-0.0`. Cross-language consumers must use the published vectors and verify byte-for-byte compatibility rather than assuming that a generic JSON serializer is equivalent.
+Chronos does not normalize Unicode (for example, NFC and NFD strings remain distinct), and it does not coerce numeric types (`1` and `1.0` have different canonical bytes). Float spelling follows the supported Python JSON encoder behavior; negative zero is retained as `-0.0`. Cross-language consumers must use the published vectors and verify byte-for-byte compatibility rather than assuming that a generic JSON serializer is equivalent.
 
 The public `canonical_json_bytes(value)` helper returns the exact UTF-8 bytes used by Chronos. `CANONICAL_JSON_FORMAT` identifies the encoding contract.
 
